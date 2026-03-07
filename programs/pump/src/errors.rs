@@ -31,4 +31,25 @@ pub enum CustomError {
 
     #[msg("Overflow or underflow occured")]
     OverflowOrUnderflowOccurred,
+
+    #[msg("Purchase would exceed max wallet limit")]
+    MaxWalletExceeded,
+
+    #[msg("Bonding curve has already graduated")]
+    AlreadyGraduated,
+
+    #[msg("Bonding curve has not graduated yet")]
+    NotGraduated,
+
+    #[msg("No tokens available to claim")]
+    NoTokensAvailable,
+
+    #[msg("Unauthorized")]
+    Unauthorized,
+
+    #[msg("Graduation threshold not reached")]
+    GraduationThresholdNotReached,
+
+    #[msg("Slippage tolerance exceeded")]
+    SlippageExceeded,
 }

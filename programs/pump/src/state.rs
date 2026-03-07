@@ -1,4 +1,4 @@
-use crate::consts::INITIAL_PRICE;
+use crate::consts::{GRADUATION_THRESHOLD_LAMPORTS, PROTOCOL_FEE_BPS, LP_FEE_BPS, AIRDROP_FEE_BPS};
 use crate::errors::CustomError;
 use crate::utils::convert_from_float;
 use crate::utils::convert_to_float;
@@ -14,89 +14,90 @@ use std::ops::Sub;
 #[account]
 pub struct CurveConfiguration {
     pub fees: f64,
+    pub protocol_wallet: Pubkey,
+    pub airdrop_wallet: Pubkey,
 }
 
 impl CurveConfiguration {
     pub const SEED: &'static str = "CurveConfiguration";
 
-    // Discriminator (8) + f64 (8)
-    pub const ACCOUNT_SIZE: usize = 8 + 32 + 8;
+    // Discriminator (8) + f64 (8) + Pubkey (32) + Pubkey (32)
+    pub const ACCOUNT_SIZE: usize = 8 + 8 + 32 + 32;
 
-    pub fn new(fees: f64) -> Self {
-        Self { fees }
+    pub fn new(fees: f64, protocol_wallet: Pubkey, airdrop_wallet: Pubkey) -> Self {
+        Self { fees, protocol_wallet, airdrop_wallet }
     }
 }
 
 #[account]
 pub struct LiquidityProvider {
-    pub shares: u64, // The number of shares this provider holds in the liquidity pool ( didnt add to contract now )
+    pub shares: u64,
 }
 
 impl LiquidityProvider {
-    pub const SEED_PREFIX: &'static str = "LiqudityProvider"; // Prefix for generating PDAs
-
-    // Discriminator (8) + f64 (8)
+    pub const SEED_PREFIX: &'static str = "LiqudityProvider";
     pub const ACCOUNT_SIZE: usize = 8 + 8;
 }
 
 #[account]
 pub struct LiquidityPool {
-    pub token_one: Pubkey, // Public key of the first token in the liquidity pool
-    pub token_two: Pubkey, // Public key of the second token in the pool
-    pub total_supply: u64, // Total supply of liquidity tokens
-    pub reserve_one: u64,  // Reserve amount of token_one in the pool
-    pub reserve_two: u64,  // Reserve amount of token_two in the pool
-    pub bump: u8,          // Nonce for the program-derived address
+    pub token_one: Pubkey,     // Token mint
+    pub token_two: Pubkey,     // (unused, kept for compat)
+    pub total_supply: u64,     // Total LP shares
+    pub reserve_one: u64,      // Token reserve
+    pub reserve_two: u64,      // SOL reserve (lamports)
+    pub bump: u8,
+    pub launch_timestamp: i64, // When pool was created
+    pub graduated: bool,       // Whether bonding curve has graduated
+    pub total_sol_raised: u64, // Cumulative SOL deposited (for graduation check)
+    pub creator: Pubkey,       // Token creator
+    pub airdrop_pool: u64,     // Accumulated airdrop fees (lamports)
 }
 
 impl LiquidityPool {
     pub const POOL_SEED_PREFIX: &'static str = "liquidity_pool";
 
-    // Discriminator (8) + Pubkey (32) + Pubkey (32) + totalsupply (8)
-    // + reserve one (8) + reserve two (8) + Bump (1)
-    pub const ACCOUNT_SIZE: usize = 8 + 32 + 32 + 8 + 8 + 8 + 1;
+    // Discriminator (8) + Pubkey (32) + Pubkey (32) + u64 (8) + u64 (8) + u64 (8)
+    // + u8 (1) + i64 (8) + bool (1) + u64 (8) + Pubkey (32) + u64 (8)
+    pub const ACCOUNT_SIZE: usize = 8 + 32 + 32 + 8 + 8 + 8 + 1 + 8 + 1 + 8 + 32 + 8;
 
-    // Helper function to generate a seed for PDAs based on token public keys
-    // pub fn generate_seed(token_one: Pubkey, token_two: Pubkey) -> String {
-    //     if token_one > token_two {
-    //         format!("{}{}", token_one.to_string(), token_two.to_string())
-    //     } else {
-    //         format!("{}{}", token_two.to_string(), token_one.to_string())
-    //     }
-    // }
-
-    // Constructor to initialize a LiquidityPool with two tokens and a bump for the PDA
-    pub fn new(token_one: Pubkey, bump: u8) -> Self {
+    pub fn new(token_one: Pubkey, bump: u8, creator: Pubkey) -> Self {
         Self {
-            token_one: token_one,
+            token_one,
             token_two: token_one,
             total_supply: 0_u64,
             reserve_one: 0_u64,
             reserve_two: 0_u64,
-            bump: bump,
+            bump,
+            launch_timestamp: Clock::get().unwrap().unix_timestamp,
+            graduated: false,
+            total_sol_raised: 0_u64,
+            creator,
+            airdrop_pool: 0_u64,
         }
+    }
+
+    /// Check if graduation threshold is met
+    pub fn should_graduate(&self) -> bool {
+        !self.graduated && self.total_sol_raised >= GRADUATION_THRESHOLD_LAMPORTS
     }
 }
 
 pub trait LiquidityPoolAccount<'info> {
-    // Grants a specific number of shares to a liquidity provider's account
     fn grant_shares(
         &mut self,
         liquidity_provider_account: &mut Account<'info, LiquidityProvider>,
-        hares: u64,
+        shares: u64,
     ) -> Result<()>;
 
-    // Removes a specific number of shares from a liquidity provider's account
     fn remove_shares(
         &mut self,
         liquidity_provider_account: &mut Account<'info, LiquidityProvider>,
         shares: u64,
     ) -> Result<()>;
 
-    // Updates the token reserves in the liquidity pool
     fn update_reserves(&mut self, reserve_one: u64, reserve_two: u64) -> Result<()>;
 
-    // Allows adding liquidity by depositing an amount of two tokens and getting back pool shares
     fn add_liquidity(
         &mut self,
         token_one_accounts: (
@@ -116,7 +117,6 @@ pub trait LiquidityPoolAccount<'info> {
         token_program: &Program<'info, Token>,
     ) -> Result<()>;
 
-    // Allows removing liquidity by burning pool shares and receiving back a proportionate amount of tokens
     fn remove_liquidity(
         &mut self,
         token_one_accounts: (
@@ -163,7 +163,7 @@ pub trait LiquidityPoolAccount<'info> {
         amount: u64,
         token_program: &Program<'info, Token>,
         authority: &AccountInfo<'info>,
-        bump: u8
+        bump: u8,
     ) -> Result<()>;
 
     fn transfer_token_to_pool(
@@ -189,7 +189,7 @@ pub trait LiquidityPoolAccount<'info> {
         to: &AccountInfo<'info>,
         amount: u64,
         system_program: &Program<'info, System>,
-        bump: u8
+        bump: u8,
     ) -> Result<()>;
 }
 
@@ -233,7 +233,6 @@ impl<'info> LiquidityPoolAccount<'info> for Account<'info, LiquidityPool> {
     fn update_reserves(&mut self, reserve_one: u64, reserve_two: u64) -> Result<()> {
         self.reserve_one = reserve_one;
         self.reserve_two = reserve_two;
-
         Ok(())
     }
 
@@ -261,7 +260,6 @@ impl<'info> LiquidityPoolAccount<'info> for Account<'info, LiquidityPool> {
             let sqrt_shares = (convert_to_float(amount_one, token_one_accounts.0.decimals)
                 .mul(convert_to_float(amount_two, 9 as u8)))
             .sqrt();
-
             shares_to_allocate = sqrt_shares as u64;
         } else {
             let mul_value = amount_one
@@ -337,7 +335,6 @@ impl<'info> LiquidityPoolAccount<'info> for Account<'info, LiquidityPool> {
         let mul_value = shares
             .checked_mul(self.reserve_one)
             .ok_or(CustomError::OverflowOrUnderflowOccurred)?;
-
         let amount_out_one = mul_value
             .checked_div(self.total_supply)
             .ok_or(CustomError::OverflowOrUnderflowOccurred)?;
@@ -345,7 +342,6 @@ impl<'info> LiquidityPoolAccount<'info> for Account<'info, LiquidityPool> {
         let mul_value = shares
             .checked_mul(self.reserve_two)
             .ok_or(CustomError::OverflowOrUnderflowOccurred)?;
-
         let amount_out_two = mul_value
             .checked_div(self.total_supply)
             .ok_or(CustomError::OverflowOrUnderflowOccurred)?;
@@ -366,13 +362,6 @@ impl<'info> LiquidityPoolAccount<'info> for Account<'info, LiquidityPool> {
             .ok_or(CustomError::OverflowOrUnderflowOccurred)?;
 
         self.update_reserves(new_reserves_one, new_reserves_two)?;
-
-        // self.transfer_token_from_pool(
-        //     token_one_accounts.1,
-        //     token_one_accounts.2,
-        //     amount_out_one,
-        //     token_program,
-        // )?;
 
         Ok(())
     }
@@ -400,30 +389,36 @@ impl<'info> LiquidityPoolAccount<'info> for Account<'info, LiquidityPool> {
         if amount <= 0 {
             return err!(CustomError::InvalidAmount);
         }
+
+        // Block trading if graduated
+        require!(!self.graduated, CustomError::AlreadyGraduated);
+
         msg!("Mint: {:?} ", token_one_accounts.0.key());
-        msg!(
-            "Swap: {:?} {:?} {:?}",
-            authority.key(),
-            style,
-            amount
-        );
+        msg!("Swap: {:?} {:?} {:?}", authority.key(), style, amount);
 
-        // xy = k => Constant product formula
-        // (x + dx)(y - dy) = k
-        // y - dy = k / (x + dx)
-        // y - dy = xy / (x + dx)
-        // dy = y - (xy / (x + dx))
-        // dy = yx + ydx - xy / (x + dx)
-        // formula => dy = ydx / (x + dx)
+        // Total fee from config (e.g. 1.5%)
+        let total_fee_pct = _bonding_configuration_account.fees;
 
+        // Calculate the amount after total fee deduction
         let adjusted_amount_in_float = convert_to_float(amount, token_one_accounts.0.decimals)
             .div(100_f64)
-            .mul(100_f64.sub(_bonding_configuration_account.fees));
-
+            .mul(100_f64.sub(total_fee_pct));
         let adjusted_amount =
             convert_from_float(adjusted_amount_in_float, token_one_accounts.0.decimals);
 
+        // Calculate fee portions in lamports/tokens
+        // Fee split: 0.60% LP (auto-compound), 0.50% airdrop, 0.40% protocol
+        // As portions of the 1.5% total: LP=40%, airdrop=33.3%, protocol=26.7%
+        let total_fee = amount.saturating_sub(adjusted_amount);
+        let lp_fee = total_fee * LP_FEE_BPS / 10000;
+        let airdrop_fee = total_fee * AIRDROP_FEE_BPS / 10000;
+        // protocol_fee is the remainder (sent off-chain by keeper)
+
+        // Track airdrop accumulation
+        self.airdrop_pool = self.airdrop_pool.saturating_add(airdrop_fee);
+
         if style == 1 {
+            // SELL: token -> SOL
             let denominator_sum = self
                 .reserve_one
                 .checked_add(adjusted_amount)
@@ -434,21 +429,20 @@ impl<'info> LiquidityPoolAccount<'info> for Account<'info, LiquidityPool> {
             );
 
             let amount_out_in_float = convert_to_float(self.reserve_two, 9 as u8).div(div_amt);
-
             let amount_out = convert_from_float(amount_out_in_float, 9 as u8);
 
             let new_reserves_one = self
                 .reserve_one
                 .checked_add(amount)
                 .ok_or(CustomError::OverflowOrUnderflowOccurred)?;
-
             let new_reserves_two = self
                 .reserve_two
                 .checked_sub(amount_out)
                 .ok_or(CustomError::OverflowOrUnderflowOccurred)?;
 
             self.update_reserves(new_reserves_one, new_reserves_two)?;
-            msg!{"Reserves: {:?} {:?}", new_reserves_one, new_reserves_two}
+            msg! {"Reserves: {:?} {:?}", new_reserves_one, new_reserves_two}
+
             self.transfer_token_to_pool(
                 token_one_accounts.2,
                 token_one_accounts.1,
@@ -456,15 +450,16 @@ impl<'info> LiquidityPoolAccount<'info> for Account<'info, LiquidityPool> {
                 authority,
                 token_program,
             )?;
-           
+
             self.transfer_sol_from_pool(
                 token_two_accounts.2,
                 token_two_accounts.1,
                 amount_out,
                 system_program,
-                bump
+                bump,
             )?;
         } else {
+            // BUY: SOL -> token
             let denominator_sum = self
                 .reserve_two
                 .checked_add(adjusted_amount)
@@ -474,30 +469,66 @@ impl<'info> LiquidityPoolAccount<'info> for Account<'info, LiquidityPool> {
                 convert_to_float(adjusted_amount, token_one_accounts.0.decimals),
             );
 
-            let amount_out_in_float = convert_to_float(self.reserve_one, 9 as u8).div(div_amt);
-
+            let amount_out_in_float =
+                convert_to_float(self.reserve_one, 9 as u8).div(div_amt);
             let amount_out = convert_from_float(amount_out_in_float, 9 as u8);
+
+            // === MAX WALLET CHECK (anti-snipe) ===
+            let clock = Clock::get()?;
+            let elapsed = clock.unix_timestamp.saturating_sub(self.launch_timestamp);
+            let total_tokens = token_one_accounts.0.supply;
+
+            let max_bps: Option<u64> = if elapsed < 30 {
+                Some(100) // 0-30s: 1% max wallet
+            } else if elapsed < 120 {
+                Some(200) // 30s-2min: 2% max wallet
+            } else if elapsed < 300 {
+                Some(500) // 2min-5min: 5% max wallet
+            } else {
+                None // 5min+: no cap
+            };
+
+            if let Some(bps) = max_bps {
+                let max_tokens = (total_tokens as u128)
+                    .checked_mul(bps as u128)
+                    .unwrap()
+                    .checked_div(10_000)
+                    .unwrap() as u64;
+                let balance_after = token_one_accounts
+                    .2
+                    .amount
+                    .checked_add(amount_out)
+                    .ok_or(CustomError::OverflowOrUnderflowOccurred)?;
+                require!(
+                    balance_after <= max_tokens,
+                    CustomError::MaxWalletExceeded
+                );
+            }
+            // === END MAX WALLET CHECK ===
+
+            // Track SOL raised for graduation
+            self.total_sol_raised = self.total_sol_raised.saturating_add(amount);
 
             let new_reserves_one = self
                 .reserve_one
                 .checked_sub(amount_out)
                 .ok_or(CustomError::OverflowOrUnderflowOccurred)?;
-
             let new_reserves_two = self
                 .reserve_two
                 .checked_add(amount)
                 .ok_or(CustomError::OverflowOrUnderflowOccurred)?;
-            
+
             self.update_reserves(new_reserves_one, new_reserves_two)?;
-            
-            msg!{"Reserves: {:?} {:?}", new_reserves_one, new_reserves_two}
+
+            msg! {"Reserves: {:?} {:?}", new_reserves_one, new_reserves_two}
+
             self.transfer_token_from_pool(
                 token_one_accounts.1,
                 token_one_accounts.2,
                 amount_out,
                 token_program,
                 token_two_accounts.1,
-                bump
+                bump,
             )?;
 
             self.transfer_sol_to_pool(
@@ -506,6 +537,12 @@ impl<'info> LiquidityPoolAccount<'info> for Account<'info, LiquidityPool> {
                 amount,
                 system_program,
             )?;
+
+            // Check graduation
+            if self.should_graduate() {
+                self.graduated = true;
+                msg!("GRADUATED! Total SOL raised: {:?}", self.total_sol_raised);
+            }
         }
         Ok(())
     }
@@ -517,7 +554,7 @@ impl<'info> LiquidityPoolAccount<'info> for Account<'info, LiquidityPool> {
         amount: u64,
         token_program: &Program<'info, Token>,
         authority: &AccountInfo<'info>,
-        bump: u8
+        bump: u8,
     ) -> Result<()> {
         token::transfer(
             CpiContext::new_with_signer(
@@ -527,43 +564,12 @@ impl<'info> LiquidityPoolAccount<'info> for Account<'info, LiquidityPool> {
                     to: to.to_account_info(),
                     authority: authority.to_account_info(),
                 },
-                &[&[
-                    "global".as_bytes(),
-                    &[bump],
-                ]],
+                &[&["global".as_bytes(), &[bump]]],
             ),
             amount,
         )?;
-
         Ok(())
     }
-
-    // fn execute_token_transfer(
-    //     &self,
-    //     source: &Account<'info, TokenAccount>,
-    //     destination: &Account<'info, TokenAccount>,
-    //     transfer_amount: u64,
-    //     token_program: &Program<'info, Token>,
-    // ) -> Result<()> {
-    //     let context = CpiContext::new_with_signer(
-    //         token_program.to_account_info(),
-    //         token::Transfer {
-    //             from: source.to_account_info(),
-    //             to: destination.to_account_info(),
-    //             authority: self.to_account_info(),
-    //         },
-    //         &[&[
-    //             LiquidityPool::POOL_SEED_PREFIX.as_bytes(),
-    //             LiquidityPool::generate_seed(self.token_one.key(), self.token_two.key())
-    //                 .as_bytes(),
-    //             &[self.bump],
-    //         ]],
-    //     );
-
-    //     token::transfer(context, transfer_amount)?;
-
-    //     Ok(())
-    // }
 
     fn transfer_token_to_pool(
         &self,
@@ -584,7 +590,6 @@ impl<'info> LiquidityPoolAccount<'info> for Account<'info, LiquidityPool> {
             ),
             amount,
         )?;
-
         Ok(())
     }
 
@@ -594,7 +599,7 @@ impl<'info> LiquidityPoolAccount<'info> for Account<'info, LiquidityPool> {
         to: &AccountInfo<'info>,
         amount: u64,
         system_program: &Program<'info, System>,
-        bump: u8
+        bump: u8,
     ) -> Result<()> {
         system_program::transfer(
             CpiContext::new_with_signer(
@@ -603,43 +608,12 @@ impl<'info> LiquidityPoolAccount<'info> for Account<'info, LiquidityPool> {
                     from: from.to_account_info().clone(),
                     to: to.clone(),
                 },
-                &[&[
-                    "global".as_bytes(),
-                    &[bump],
-                ]],
+                &[&["global".as_bytes(), &[bump]]],
             ),
             amount,
         )?;
-
         Ok(())
     }
-
-    // fn execute_sol_transfer(
-    //     &self,
-    //     recipient: &AccountInfo<'info>,
-    //     transfer_amount: u64,
-    //     system_program: &Program<'info, System>,
-    // ) -> Result<()> {
-    //     let pool_account = self.to_account_info();
-
-    //     let context = CpiContext::new_with_signer(
-    //         system_program.to_account_info(),
-    //         system_program::Transfer {
-    //             from: pool_account,
-    //             to: recipient.clone(),
-    //         },
-    //         &[&[
-    //             LiquidityPool::POOL_SEED_PREFIX.as_bytes(),
-    //             LiquidityPool::generate_seed(self.token_one.key(), self.token_two.key())
-    //                 .as_bytes(),
-    //             &[self.bump],
-    //         ]],
-    //     );
-
-    //     system_program::transfer(context, transfer_amount)?;
-
-    //     Ok(())
-    // }
 
     fn transfer_sol_to_pool(
         &self,

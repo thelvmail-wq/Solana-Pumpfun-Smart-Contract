@@ -1,20 +1,16 @@
-use anchor_lang::{prelude::*, solana_program::program::invoke_signed};
-use anchor_spl::{
-    associated_token::AssociatedToken,
-    token::{Mint, Token, TokenAccount},
-};
+use anchor_lang::prelude::*;
+use anchor_spl::token::{Mint, Token, TokenAccount};
 
 use crate::state::{LiquidityPool, LiquidityPoolAccount, LiquidityProvider};
-use raydium_contract_instructions::amm_instruction;
 
 pub fn remove_liquidity(
-    ctx: Context<RemoveLiquidity>,
-    nonce: u8,
-    init_pc_amount: u64,
+    _ctx: Context<RemoveLiquidity>,
+    _nonce: u8,
+    _init_pc_amount: u64,
 ) -> Result<()> {
-    
-    // If you want to Interact with CPI, then plz contact to me.
-
+    // Remove liquidity is not used in the bonding curve model.
+    // After graduation, liquidity is managed by Raydium.
+    msg!("Remove liquidity not supported on bonding curve");
     Ok(())
 }
 
@@ -34,7 +30,12 @@ pub struct RemoveLiquidity<'info> {
         bump,
     )]
     pub global_account: AccountInfo<'info>,
-    
-    /// CHECK: Safe - CPI accounts
-    
+
+    #[account(mut)]
+    pub coin_mint: Box<Account<'info, Mint>>,
+
+    #[account(mut)]
+    pub user: Signer<'info>,
+    pub system_program: Program<'info, System>,
+    pub token_program: Program<'info, Token>,
 }

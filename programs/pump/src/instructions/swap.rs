@@ -21,7 +21,7 @@ pub fn swap(ctx: Context<Swap>, amount: u64, style: u64) -> Result<()> {
     let token_two_accounts = (
         &mut *ctx.accounts.mint_token_one.clone(),
         &mut ctx.accounts.global_account.to_account_info().clone(),
-        &mut ctx.accounts.user.clone()
+        &mut ctx.accounts.user.clone(),
     );
 
     pool.swap(

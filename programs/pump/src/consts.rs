@@ -1,1 +1,28 @@
-pub const INITIAL_PRICE: u64 = 600;       // lamports per one token (without decimal)
+/// Initial price: lamports per one token (without decimals)
+pub const INITIAL_PRICE: u64 = 600;
+
+/// Graduation threshold: 89 SOL in lamports
+pub const GRADUATION_THRESHOLD_LAMPORTS: u64 = 89_000_000_000;
+
+/// Deploy fee: 1.5 SOL in lamports
+pub const DEPLOY_FEE_LAMPORTS: u64 = 1_500_000_000;
+
+/// Fee split basis points (out of 10000)
+/// Total swap fee is 1.5% (150 bps), split as:
+///   0.60% LP auto-compound  = 4000 / 10000 of the fee
+///   0.50% airdrop pool      = 3333 / 10000 of the fee
+///   0.40% protocol          = 2667 / 10000 of the fee
+pub const LP_FEE_BPS: u64 = 4000;
+pub const AIRDROP_FEE_BPS: u64 = 3333;
+pub const PROTOCOL_FEE_BPS: u64 = 2667;
+
+/// Deploy fee split (out of 100)
+pub const DEPLOY_LP_PCT: u64 = 50;
+pub const DEPLOY_PROTOCOL_PCT: u64 = 30;
+pub const DEPLOY_AIRDROP_PCT: u64 = 10;
+pub const DEPLOY_INFRA_PCT: u64 = 10;
+
+/// Max wallet anti-snipe windows (seconds)
+pub const SNIPE_WINDOW_1: i64 = 30;   // 0-30s: 1% max
+pub const SNIPE_WINDOW_2: i64 = 120;  // 30s-2min: 2% max
+pub const SNIPE_WINDOW_3: i64 = 300;  // 2min-5min: 5% max

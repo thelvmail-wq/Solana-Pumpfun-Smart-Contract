@@ -14,13 +14,14 @@ declare_id!("7wUQXRQtBzTmyp9kcrmok9FKcc4RSYXxPYN9FGDLnqxb");
 pub mod pump {
     use super::*;
 
-    pub fn initialize(ctx: Context<InitializeCurveConfiguration>, fee: f64) -> Result<()> {
-        instructions::initialize(ctx, fee)
+    pub fn initialize(
+        ctx: Context<InitializeCurveConfiguration>,
+        fee: f64,
+        protocol_wallet: Pubkey,
+        airdrop_wallet: Pubkey,
+    ) -> Result<()> {
+        instructions::initialize(ctx, fee, protocol_wallet, airdrop_wallet)
     }
-
-    // pub fn create_pool(ctx: Context<CreateLiquidityPool>) -> Result<()> {
-    //     instructions::create_pool(ctx)
-    // }
 
     pub fn add_liquidity(
         ctx: Context<AddLiquidity>,
@@ -42,12 +43,7 @@ pub mod pump {
         instructions::swap(ctx, amount, style)
     }
 
-    pub fn create_raydium_pool(
-        ctx: Context<CreateRaydiumPool>,
-        nonce: u8,
-        init_pc_amount: u64,
-        init_coin_amount: u64,
-    ) -> Result<()> {
-        instructions::create_raydium_pool(ctx, nonce, init_pc_amount, init_coin_amount)
+    pub fn migrate_to_raydium(ctx: Context<MigrateToRaydium>, nonce: u8) -> Result<()> {
+        instructions::migrate_to_raydium(ctx, nonce)
     }
 }
