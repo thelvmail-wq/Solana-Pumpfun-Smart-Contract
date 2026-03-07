@@ -52,4 +52,19 @@ pub enum CustomError {
 
     #[msg("Slippage tolerance exceeded")]
     SlippageExceeded,
+
+    #[msg("Ticker is locked by a protected token")]
+    TickerLocked,
+
+    #[msg("Image is locked by a protected token")]
+    ImageLocked,
+
+    #[msg("Identity is locked by a protected token")]
+    IdentityLocked,
+
+    #[msg("Identity lock cooldown has not expired")]
+    IdentityCooldownActive,
+
+    #[msg("No deploy slots available")]
+    NoSlotsAvailable,
 }

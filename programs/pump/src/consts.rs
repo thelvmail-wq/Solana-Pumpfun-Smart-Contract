@@ -26,3 +26,10 @@ pub const DEPLOY_INFRA_PCT: u64 = 10;
 pub const SNIPE_WINDOW_1: i64 = 30;   // 0-30s: 1% max
 pub const SNIPE_WINDOW_2: i64 = 120;  // 30s-2min: 2% max
 pub const SNIPE_WINDOW_3: i64 = 300;  // 2min-5min: 5% max
+
+/// Anti-vamp: MC threshold for protection activation (in USD cents to avoid floats)
+/// $100,000 = 10_000_000 cents. Keeper checks this off-chain and calls activate_protection.
+pub const MC_PROTECTION_THRESHOLD_CENTS: u64 = 10_000_000;
+
+/// Identity lock cooldown: 24 hours in seconds
+pub const IDENTITY_COOLDOWN_SECS: i64 = 86_400;
