@@ -1,11 +1,11 @@
 [toolchain]
 
 [features]
-seeds = true
+resolution = true
 skip-lint = false
 
 [programs.devnet]
-pump = "BCdbBhYrRfd17MBGeompteXDgoBFxgnfQh2NkdgJQk5w"
+pump = "9cuFeeHRpr3yfjzeHLm84z95JPGaRgASwV4YY7PaMtkx"
 
 [registry]
 url = "https://devnet.helius-rpc.com/?api-key=39d83ffa-585c-4f90-8636-2f6795db4cb3"
