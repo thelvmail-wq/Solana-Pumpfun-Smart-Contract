@@ -5,33 +5,24 @@ use anchor_spl::{
 };
 
 use crate::{
-    consts::{DEPLOY_FEE_LAMPORTS, DEPLOY_LP_PCT, DEPLOY_PROTOCOL_PCT, DEPLOY_AIRDROP_PCT},
+    consts::{DEPLOY_FEE_LAMPORTS, DEPLOY_LP_PCT, DEPLOY_AIRDROP_PCT},
     state::{LiquidityPool, LiquidityPoolAccount, LiquidityProvider, transfer_sol_to_pool},
 };
 
 pub fn add_liquidity(ctx: Context<AddLiquidity>, amount_one: u64, amount_two: u64) -> Result<()> {
     let pool = &mut ctx.accounts.pool;
-
-    let token_one_accounts = (
-        &mut *ctx.accounts.mint_token_one.clone(),
-        &mut *ctx.accounts.pool_token_account_one,
-        &mut *ctx.accounts.user_token_account_one,
-    );
-
-    let token_two_accounts = (
-        &mut *ctx.accounts.mint_token_one.clone(),
-        &mut ctx.accounts.global_account.to_account_info(),
-        &mut ctx.accounts.user.to_account_info().clone(),
-    );
-
-    pool.set_inner(LiquidityPool::new(
-        ctx.accounts.mint_token_one.key(),
-        ctx.bumps.pool,
-        ctx.accounts.user.key(),
-    ));
+    pool.token_one = ctx.accounts.mint_token_one.key();
+    pool.token_two = ctx.accounts.mint_token_one.key();
+    pool.total_supply = 0;
+    pool.reserve_one = 0;
+    pool.reserve_two = 0;
+    pool.bump = ctx.bumps.pool;
+    pool.launch_timestamp = Clock::get()?.unix_timestamp;
+    pool.graduated = false;
+    pool.total_sol_raised = 0;
+    pool.creator = ctx.accounts.user.key();
 
     let lp_portion = DEPLOY_FEE_LAMPORTS * DEPLOY_LP_PCT / 100;
-    let _protocol_portion = DEPLOY_FEE_LAMPORTS * DEPLOY_PROTOCOL_PCT / 100;
     let airdrop_portion = DEPLOY_FEE_LAMPORTS * DEPLOY_AIRDROP_PCT / 100;
 
     transfer_sol_to_pool(
@@ -43,6 +34,17 @@ pub fn add_liquidity(ctx: Context<AddLiquidity>, amount_one: u64, amount_two: u6
 
     pool.airdrop_pool = airdrop_portion;
 
+    let token_one_accounts = (
+        &mut *ctx.accounts.mint_token_one.clone(),
+        &mut *ctx.accounts.pool_token_account_one,
+        &mut *ctx.accounts.user_token_account_one,
+    );
+    let token_two_accounts = (
+        &mut *ctx.accounts.mint_token_one.clone(),
+        &mut ctx.accounts.global_account.to_account_info(),
+        &mut ctx.accounts.user.to_account_info().clone(),
+    );
+
     pool.add_liquidity(
         token_one_accounts,
         token_two_accounts,
@@ -53,7 +55,7 @@ pub fn add_liquidity(ctx: Context<AddLiquidity>, amount_one: u64, amount_two: u6
         &ctx.accounts.token_program,
     )?;
 
-    msg!("Pool created for mint: {:?}", ctx.accounts.mint_token_one.key());
+    msg!("Pool created");
     Ok(())
 }
 
@@ -69,11 +71,7 @@ pub struct AddLiquidity<'info> {
     pub pool: Box<Account<'info, LiquidityPool>>,
 
     /// CHECK
-    #[account(
-        mut,
-        seeds = [b"global"],
-        bump,
-    )]
+    #[account(mut, seeds = [b"global"], bump)]
     pub global_account: AccountInfo<'info>,
 
     #[account(
@@ -105,7 +103,6 @@ pub struct AddLiquidity<'info> {
 
     #[account(mut)]
     pub user: Signer<'info>,
-    pub rent: Sysvar<'info, Rent>,
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
