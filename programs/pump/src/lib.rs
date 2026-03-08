@@ -48,27 +48,34 @@ pub mod pump {
         instructions::migrate_to_raydium(ctx, nonce)
     }
 
-    /// Register a new token's metadata for anti-vamp protection.
-    /// Called at deploy time. If a protected token already holds the same
-    /// ticker/image/identity hash, Anchor's init will fail → deploy blocked.
-    pub fn register_token(
-        ctx: Context<RegisterToken>,
+    /// Step 1 of 2: create the TokenRegistry PDA for a new token.
+    pub fn create_token_registry(
+        ctx: Context<CreateTokenRegistry>,
         ticker_hash: [u8; 32],
         image_hash: [u8; 32],
         identity_hash: [u8; 32],
         ticker_raw: [u8; 16],
     ) -> Result<()> {
-        instructions::register_token(ctx, ticker_hash, image_hash, identity_hash, ticker_raw)
+        instructions::create_token_registry(ctx, ticker_hash, image_hash, identity_hash, ticker_raw)
+    }
+
+    /// Step 2 of 2: claim ticker/image/identity locks.
+    /// FIRST-DEPLOYER-WINS: if any lock PDA already exists, this tx fails.
+    pub fn claim_locks(
+        ctx: Context<ClaimLocks>,
+        ticker_hash: [u8; 32],
+        image_hash: [u8; 32],
+        identity_hash: [u8; 32],
+    ) -> Result<()> {
+        instructions::claim_locks(ctx, ticker_hash, image_hash, identity_hash)
     }
 
     /// Keeper-only: activate protection when token MC > $100K.
-    /// Locks ticker, image, and identity — no new token can reuse them.
     pub fn activate_protection(ctx: Context<ActivateProtection>) -> Result<()> {
         instructions::activate_protection(ctx)
     }
 
     /// Keeper-only: deactivate protection when token MC drops below $100K.
-    /// Unlocks ticker, image, and identity for reuse.
     pub fn deactivate_protection(ctx: Context<DeactivateProtection>) -> Result<()> {
         instructions::deactivate_protection(ctx)
     }
