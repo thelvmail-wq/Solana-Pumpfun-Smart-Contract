@@ -1672,10 +1672,10 @@ function LaunchModal({onClose,slotData}) {
   // Simulated on-chain registry - populated at deploy time
   // Each entry: {ticker, imageHash, identity, marketCap, lockedAt}
   const DEPLOYED_TOKENS = [
-    {ticker:"PUNCH",  imageHash:"hash_punch_monkey", identity:"punchthemonkey", marketCap:82000,  lockedAt: Date.now()-3600000},
-    {ticker:"ELON",   imageHash:"hash_elon_photo",   identity:"elonmusk",       marketCap:148000, lockedAt: Date.now()-120000},
-    {ticker:"DOGE",   imageHash:"hash_doge_shibe",   identity:"dogecoin",       marketCap:220000, lockedAt: Date.now()-7200000},
-    {ticker:"PEPE",   imageHash:"hash_pepe_frog",    identity:"pepecoin",       marketCap:55000,  lockedAt: Date.now()-1800000},
+    
+    
+    
+    
   ];
 
   const MC_LOCK_THRESHOLD = 50000; // $50K - tokens above this hold all locks
