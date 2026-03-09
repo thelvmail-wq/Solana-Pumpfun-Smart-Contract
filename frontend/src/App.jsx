@@ -3185,6 +3185,22 @@ export default function SummitMoon() {
   const [selected,setSelected]=useState(null);
   const [launching,setLaunching]=useState(false);
   const [connected,setConnected]=useState(false);
+  const [walletPubkey,setWalletPubkey]=useState(null);
+
+  const connectWallet = async () => {
+    try {
+      const provider = window?.solana;
+      if (!provider?.isPhantom) { window.open("https://phantom.app","_blank"); return; }
+      const resp = await provider.connect();
+      setWalletPubkey(resp.publicKey.toString());
+      setConnected(true);
+    } catch(e) { console.error(e); }
+  };
+
+  const disconnectWallet = async () => {
+    try { await window?.solana?.disconnect(); } catch(e) {}
+    setConnected(false); setWalletPubkey(null);
+  };
   const [filter,setFilter]=useState("hot");
   const [view,setView]=useState("feed");
   const [showNotifs,setShowNotifs]=useState(false);
@@ -3217,7 +3233,7 @@ export default function SummitMoon() {
     return t.chg>50&&t.mcap>500000;
   });
 
-  if(selected) return <TokenPage t={selected} onClose={()=>setSelected(null)} connected={connected} onConnect={()=>setConnected(c=>!c)}/>;
+  if(selected) return <TokenPage t={selected} onClose={()=>setSelected(null)} connected={connected} onConnect={connectWallet}/>;
   if(view==="portfolio") return <Portfolio onSelectToken={t=>{setView("feed");setSelected(t);}} onClose={()=>setView("feed")}/>
   if(view==="tokenomics") return <Tokenomics onClose={()=>setView("feed")}/>;
 
@@ -3256,8 +3272,8 @@ export default function SummitMoon() {
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 1.5A4.5 4.5 0 0 0 3.5 6v2.5L2 10.5h12L12.5 8.5V6A4.5 4.5 0 0 0 8 1.5ZM6 12a2 2 0 0 0 4 0" stroke="rgba(250,246,239,0.45)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
             {unread>0&&<div style={{position:"absolute",top:6,right:6,width:5,height:5,borderRadius:"50%",background:C.red}}/>}
           </button>
-          <button onClick={()=>setConnected(c=>!c)} style={{height:32,padding:"0 14px",background:connected?"transparent":C.accent,border:`1px solid ${connected?C.border:C.accent}`,borderRadius:4,color:connected?C.textSec:"#0d0c0b",fontSize:12,fontWeight:500,cursor:"pointer",transition:"all 0.15s",letterSpacing:"0.01em",fontFamily:C.mono}}>
-            {connected?"9xK2...mR4p":"Connect"}
+          <button onClick={()=>connected?disconnectWallet():connectWallet()} style={{height:32,padding:"0 14px",background:connected?"transparent":C.accent,border:`1px solid ${connected?C.border:C.accent}`,borderRadius:4,color:connected?C.textSec:"#0d0c0b",fontSize:12,fontWeight:500,cursor:"pointer",transition:"all 0.15s",letterSpacing:"0.01em",fontFamily:C.mono}}>
+            {connected?(walletPubkey?walletPubkey.slice(0,4)+"..."+walletPubkey.slice(-4):"Connected"):"Connect"}
           </button>
         </div>
       </nav>
