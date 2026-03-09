@@ -191,7 +191,7 @@ function fmtVol(n) {
 // SUMMIT.MOON — TOKENOMICS v4 — CLEAN SIMPLE MODEL
 // ═══════════════════════════════════════════════════════════════
 // Pump.fun: 1% fee, keeps 100%. Gives holders $0.
-// Summit:   1.25% fee. 1.00% goes directly to airdrop eligible holders.
+// Summit:   1.5% fee. 0.25% → quarterly USDC airdrop pool.
 // That's it. Simple. No tiers. No sqrt math. Just hold more = earn more.
 // ═══════════════════════════════════════════════════════════════
 
@@ -200,7 +200,7 @@ const TOTAL_SUPPLY        = 1_000_000_000;
 const BONDING_PCT         = 0.65;
 const RESERVE_PCT         = 0.10;
 
-// ── Swap fee: 1.25% total ─────────────────────────────────────
+// ── Swap fee: 1.5% total ─────────────────────────────────────
 const FEE_TOTAL           = 0.0150;
 const FEE_LP              = 0.0090;  // 0.90% 2192 LP
 const FEE_PROTOCOL        = 0.0035;  // 0.35% 2192 protocol
@@ -209,8 +209,8 @@ const FEE_AIRDROP         = 0.0025;  // 0.25% 2192 quarterly USDC airdrop pool
 // ── Deploy fee: 1.5 SOL ───────────────────────────────────────
 const DEPLOY_LP_PCT       = 0.50;    // 0.75 SOL seeds LP
 const DEPLOY_PROTOCOL_PCT = 0.30;    // 0.45 SOL protocol
-const DEPLOY_BONUS_PCT    = 0.10;    // 0.15 SOL → USDC added to holder pool
-const DEPLOY_INFRA_PCT    = 0.10;    // 0.15 SOL anti-copycat infra
+const DEPLOY_BONUS_PCT    = 0.10;    // 0.15 SOL → airdrop pool
+const DEPLOY_INFRA_PCT    = 0.10;    // 0.15 SOL → LP seed
 const SOL_PRICE           = 180;
 const DAILY_LAUNCHES      = 50;
 
@@ -1801,8 +1801,8 @@ function LaunchModal({onClose,slotData}) {
           {/* Fee breakdown cards */}
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
             {[
-              {l:"Deploy fee",v:"1.5 SOL",c:C.accent,rows:[["50%","Seeds LP immediately"],["20%","Protocol"],["20%","Holder USDC pool"],["10%","Anti-copycat infra"]]},
-              {l:"Trading fee",v:"1.25%",c:C.green,rows:[["0.50%","LP locked forever"],["0.20%","Protocol"],["0.55%","Holders quarterly USDC"]]},
+              {l:"Deploy fee",v:"1.5 SOL",c:C.accent,rows:[["50%","Seeds LP immediately"],["30%","Protocol"],["10%","Quarterly airdrop pool"],["10%","Infrastructure"]]},
+              {l:"Trading fee",v:"1.5%",c:C.green,rows:[["0.90%","LP"],["0.35%","Protocol"],["0.25%","Quarterly USDC airdrop pool"]]},
             ].map(card=>(
               <div key={card.l} style={{background:C.card,borderRadius:8,padding:"14px",border:`1px solid ${card.l==="Trading fee"?"rgba(48,209,88,0.25)":C.border}`}}>
                 <Label size={10} color={C.textTer} style={{display:"block",marginBottom:6,textTransform:"uppercase",letterSpacing:0.5}}>{card.l}</Label>
@@ -2309,11 +2309,11 @@ function Tokenomics({onClose}) {
 
             {/* vs pump.fun */}
             <GlassCard style={{padding:"18px 20px",marginBottom:12,background:"rgba(255,214,10,0.04)",border:`1px solid rgba(255,214,10,0.2)`}} hover={false}>
-              <Label size={12} color={C.gold} weight={700} style={{display:"block",marginBottom:12,textTransform:"uppercase",letterSpacing:"0.04em"}}>Why 1.25% beats 1.0%</Label>
+              <Label size={12} color={C.gold} weight={700} style={{display:"block",marginBottom:12,textTransform:"uppercase",letterSpacing:"0.04em"}}>Why 1.5% beats 1.0%</Label>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
                 {[
                   {label:"pump.fun",fee:"1.0%",sub:"charges it, keeps all of it",col:C.textTer},
-                  {label:"summit.moon",fee:"1.25%",sub:"charges it, gives 1% back to holders",col:C.gold},
+                  {label:"summit.moon",fee:"1.5%",sub:"charges it, 0.25% goes to quarterly airdrop",col:C.gold},
                 ].map(p=>(
                   <div key={p.label} style={{padding:"12px 14px",background:"rgba(255,255,255,0.03)",borderRadius:10,border:`1px solid ${p.col}20`}}>
                     <Label size={10} color={p.col} style={{display:"block",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.04em"}}>{p.label}</Label>
@@ -2330,7 +2330,7 @@ function Tokenomics({onClose}) {
               <div style={{padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <div>
                   <Label size={10} color={C.textTer} style={{display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em"}}>Swap fee — per trade</Label>
-                  <Label size={28} color={C.green} weight={700} style={{lineHeight:1}}>1.25%</Label>
+                  <Label size={28} color={C.green} weight={700} style={{lineHeight:1}}>1.5%</Label>
                 </div>
                 <div style={{textAlign:"right"}}>
                   <Label size={10} color={C.textTer} style={{display:"block",marginBottom:4}}>On $1M volume</Label>
