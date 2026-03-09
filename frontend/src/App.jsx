@@ -2035,6 +2035,34 @@ function LaunchModal({onClose,slotData}) {
   );
 }
 
+function NotifPanel({onClose}) {
+  const [notifs,setNotifs]=useState(MOCK_NOTIFS);
+  return (
+    <div style={{position:"fixed",inset:0,zIndex:200}} onClick={onClose}>
+      <div style={{position:"absolute",top:58,right:16,width:300,background:C.sheet,border:"1px solid "+C.border,borderRadius:8,overflow:"hidden",boxShadow:"0 20px 60px rgba(0,0,0,0.6)",animation:"scaleIn 0.18s ease"}} onClick={e=>e.stopPropagation()}>
+        <div style={{padding:"14px 16px",borderBottom:"1px solid "+C.border,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <Label size={15} color={C.text} weight={600}>Notifications</Label>
+          <button onClick={()=>setNotifs(n=>n.map(x=>({...x,read:true})))} style={{background:"none",border:"none",cursor:"pointer"}}><Label size={12} color={C.blue}>Mark all read</Label></button>
+        </div>
+        <div style={{maxHeight:"60vh",overflowY:"auto"}}>
+          {notifs.map(n=>(
+            <div key={n.id} onClick={()=>setNotifs(ns=>ns.map(x=>x.id===n.id?{...x,read:true}:x))} style={{padding:"13px 16px",borderBottom:"1px solid "+C.border,background:n.read?"transparent":"rgba(255,255,255,0.02)",cursor:"pointer"}}>
+              <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
+                <div style={{width:8,height:8,borderRadius:"50%",background:n.read?C.textQuat:n.color,marginTop:4,flexShrink:0}}/>
+                <div style={{flex:1}}>
+                  <Label size={12} color={n.read?C.textTer:C.text} style={{lineHeight:1.5}}>{n.msg}</Label>
+                  <div style={{marginTop:3}}><Label size={10} color={C.textQuat}>{n.time}</Label></div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 export default function SummitMoon() {
   const [selected,setSelected]=useState(null);
   const [launching,setLaunching]=useState(false);
