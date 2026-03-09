@@ -143,9 +143,19 @@ export async function buildDeployTx(wallet, mintPubkey, ticker, imageHash, ident
   const [imageLock] = PublicKey.findProgramAddressSync([Buffer.from('image_lock'), Buffer.from(imageHash||new Uint8Array(32))], PROGRAM_ID)
   const [identityLock] = PublicKey.findProgramAddressSync([Buffer.from('identity_lock'), Buffer.from(identityHash||new Uint8Array(32))], PROGRAM_ID)
 
-  // ix1: create_token_registry
-  const data1 = Buffer.alloc(8)
+  // ix1: create_token_registry — 8 disc + 32 ticker_hash + 32 image_hash + 32 identity_hash + 16 ticker_raw
+  const tickerRawBuf = Buffer.alloc(16)
+  Buffer.from(ticker.slice(0,16)).copy(tickerRawBuf)
+  const imgHash = Buffer.alloc(32)
+  if(imageHash) Buffer.from(imageHash).copy(imgHash)
+  const idHash = Buffer.alloc(32)
+  if(identityHash) Buffer.from(identityHash).copy(idHash)
+  const data1 = Buffer.alloc(8 + 32 + 32 + 32 + 16)
   DISCRIMINATORS.create_token_registry.copy(data1, 0)
+  tickerBuf.copy(data1, 8)
+  imgHash.copy(data1, 40)
+  idHash.copy(data1, 72)
+  tickerRawBuf.copy(data1, 104)
   const ix1 = new TransactionInstruction({
     keys: [
       { pubkey: tokenRegistry, isSigner: false, isWritable: true },
@@ -158,8 +168,11 @@ export async function buildDeployTx(wallet, mintPubkey, ticker, imageHash, ident
   })
 
   // ix2: claim_locks
-  const data2 = Buffer.alloc(8)
+  const data2 = Buffer.alloc(8 + 32 + 32 + 32)
   DISCRIMINATORS.claim_locks.copy(data2, 0)
+  tickerBuf.copy(data2, 8)
+  imgHash.copy(data2, 40)
+  idHash.copy(data2, 72)
   const ix2 = new TransactionInstruction({
     keys: [
       { pubkey: tokenRegistry, isSigner: false, isWritable: true },
