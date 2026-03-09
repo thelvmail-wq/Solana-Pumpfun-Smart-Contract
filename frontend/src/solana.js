@@ -178,10 +178,7 @@ export async function buildDeployTx(wallet, mintPubkey, ticker, imageHash, ident
     data,
   })
 
-  const { ComputeBudgetProgram } = await import('@solana/web3.js')
   const tx = new Transaction()
-  tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: 400000 }))
-  tx.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 10000 }))
   tx.add(ix)
   const { blockhash } = await connection.getLatestBlockhash()
   tx.recentBlockhash = blockhash
