@@ -185,3 +185,53 @@ export async function buildDeployTx(wallet, mintPubkey, ticker, imageHash, ident
   tx.feePayer = creator
   return tx
 }
+
+
+// Fetch all TokenRegistry accounts from the program
+// TokenRegistry account size = 202 bytes
+export async function fetchDeployedTokens() {
+  try {
+    const accounts = await connection.getProgramAccounts(PROGRAM_ID, {
+      filters: [{ dataSize: 202 }]
+    })
+    return accounts.map(({ pubkey, account }) => {
+      const data = account.data
+      const mint = new PublicKey(data.slice(8, 40))
+      const tickerRaw = data.slice(136, 152)
+      const tickerEnd = tickerRaw.indexOf(0)
+      const ticker = new TextDecoder().decode(tickerRaw.slice(0, tickerEnd === -1 ? 16 : tickerEnd)).trim()
+      const isProtected = data[152] === 1
+      const protectedAt = Number(data.readBigInt64LE(153))
+      const creatorKey = new PublicKey(data.slice(161, 193))
+      const createdAtTs = Number(data.readBigInt64LE(193))
+      const ageMs = Date.now() - createdAtTs * 1000
+      const ageMins = Math.floor(ageMs / 60000)
+      const ageDays = Math.floor(ageMs / 86400000)
+      return {
+        id: mint.toBase58(),
+        pubkey: pubkey.toBase58(),
+        mint: mint.toBase58(),
+        sym: ticker || "UNKNOWN",
+        name: ticker || "Unknown Token",
+        pi: Math.abs(data[8] + data[9]) % 8,
+        mcap: 0, chg: 0, prog: 0, holders: 0,
+        age: ageDays,
+        raisedSOL: 0, raisedSOLMax: 85,
+        elapsed: ageMins,
+        vol: "$0", volRaw: 0, txs: 0,
+        desc: "Deployed on-chain",
+        bondingFull: false, minsAgo: ageMins,
+        graduated: false, topicLocked: false,
+        topicSource: null, topicTitle: null,
+        tw: null, tg: null, web: null,
+        creator: creatorKey.toBase58(),
+        createdAt: createdAtTs,
+        isProtected,
+        isOnChain: true,
+      }
+    })
+  } catch (e) {
+    console.error("fetchDeployedTokens error:", e)
+    return []
+  }
+}
