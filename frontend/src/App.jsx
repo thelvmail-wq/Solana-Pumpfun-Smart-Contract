@@ -2023,7 +2023,44 @@ function LaunchModal({onClose,slotData}) {
           {deployBlocked&&!tickerBlock&&!imageBlock&&<div style={{padding:"9px 12px",background:C.redBg,border:`1px solid ${C.redBd}`,borderRadius:9,marginBottom:10}}><Label size={12} color={C.red}>Resolve all conflicts above to deploy.</Label></div>}
 
           {/* Primary CTA - bonding curve */}
-          <Btn onClick={()=>{if(!ready||deployBlocked)return;setState("loading");(async()=>{try{const provider=window?.solana;const {Keypair,SystemProgram,Transaction:SolTx}=await import("@solana/web3.js");const {createInitializeMint2Instruction,TOKEN_PROGRAM_ID,MINT_SIZE,getMinimumBalanceForRentExemptMint}=await import("@solana/spl-token");const mintKp=Keypair.generate();const lamports=await getMinimumBalanceForRentExemptMint(connection);const createMintIxs=[SystemProgram.createAccount({fromPubkey:provider.publicKey,newAccountPubkey:mintKp.publicKey,space:MINT_SIZE,lamports,programId:TOKEN_PROGRAM_ID}),createInitializeMint2Instruction(mintKp.publicKey,9,provider.publicKey,provider.publicKey)];const mk=Keypair.generate();const lam=await getMinimumBalanceForRentExemptMint(connection);const tx1=new SolTx();tx1.add(SystemProgram.createAccount({fromPubkey:provider.publicKey,newAccountPubkey:mk.publicKey,space:MINT_SIZE,lamports:lam,programId:TOKEN_PROGRAM_ID}));tx1.add(createInitializeMint2Instruction(mk.publicKey,9,provider.publicKey,provider.publicKey));const bh1=await connection.getLatestBlockhash("confirmed");tx1.recentBlockhash=bh1.blockhash;tx1.feePayer=provider.publicKey;tx1.partialSign(mk);const s1=await provider.signTransaction(tx1);const sig1=await connection.sendRawTransaction(s1.serialize(),{skipPreflight:true,maxRetries:10});console.log("Mint TX:",sig1);await connection.confirmTransaction({signature:sig1,blockhash:bh1.blockhash,lastValidBlockHeight:bh1.lastValidBlockHeight},"confirmed");console.log("Mint created");const {ComputeBudgetProgram}=await import("@solana/web3.js");const regTx=await buildDeployTx(provider.publicKey,mk.publicKey.toString(),form.ticker||"TEST",null,null);const tx2=new SolTx();tx2.add(ComputeBudgetProgram.setComputeUnitLimit({units:400000}));tx2.add(ComputeBudgetProgram.setComputeUnitPrice({microLamports:10000}));regTx.instructions.forEach(ix=>tx2.add(ix));const bh2=await connection.getLatestBlockhash("confirmed");tx2.recentBlockhash=bh2.blockhash;tx2.feePayer=provider.publicKey;const s2=await provider.signTransaction(tx2);const sig2=await connection.sendRawTransaction(s2.serialize(),{skipPreflight:true,maxRetries:10});console.log("Registry TX:",sig2);await connection.confirmTransaction({signature:sig2,blockhash:bh2.blockhash,lastValidBlockHeight:bh2.lastValidBlockHeight},"confirmed");console.log("Registry created");setState("done");).catch(e=>console.error("fetch tokens error:",e));},[]);
+          <Btn onClick={()=>{if(!ready||deployBlocked)return;setState("loading");(async()=>{try{const provider=window?.solana;const {Keypair,SystemProgram,Transaction:SolTx}=await import("@solana/web3.js");const {createInitializeMint2Instruction,TOKEN_PROGRAM_ID,MINT_SIZE,getMinimumBalanceForRentExemptMint}=await import("@solana/spl-token");const {ComputeBudgetProgram}=await import("@solana/web3.js");const mk=Keypair.generate();const lam=await getMinimumBalanceForRentExemptMint(connection);const tx1=new SolTx();tx1.add(SystemProgram.createAccount({fromPubkey:provider.publicKey,newAccountPubkey:mk.publicKey,space:MINT_SIZE,lamports:lam,programId:TOKEN_PROGRAM_ID}));tx1.add(createInitializeMint2Instruction(mk.publicKey,9,provider.publicKey,provider.publicKey));const bh1=await connection.getLatestBlockhash("confirmed");tx1.recentBlockhash=bh1.blockhash;tx1.feePayer=provider.publicKey;tx1.partialSign(mk);const s1=await provider.signTransaction(tx1);const sig1=await connection.sendRawTransaction(s1.serialize(),{skipPreflight:true,maxRetries:10});console.log("Mint TX:",sig1);await connection.confirmTransaction({signature:sig1,blockhash:bh1.blockhash,lastValidBlockHeight:bh1.lastValidBlockHeight},"confirmed");console.log("Mint created");const regTx=await buildDeployTx(provider.publicKey,mk.publicKey.toString(),form.ticker||"TEST",null,null);const tx2=new SolTx();tx2.add(ComputeBudgetProgram.setComputeUnitLimit({units:400000}));tx2.add(ComputeBudgetProgram.setComputeUnitPrice({microLamports:10000}));regTx.instructions.forEach(ix=>tx2.add(ix));const bh2=await connection.getLatestBlockhash("confirmed");tx2.recentBlockhash=bh2.blockhash;tx2.feePayer=provider.publicKey;const s2=await provider.signTransaction(tx2);const sig2=await connection.sendRawTransaction(s2.serialize(),{skipPreflight:true,maxRetries:10});console.log("Registry TX:",sig2);await connection.confirmTransaction({signature:sig2,blockhash:bh2.blockhash,lastValidBlockHeight:bh2.lastValidBlockHeight},"confirmed");console.log("Registry created");setState("done");}catch(e){console.error("Deploy error:",e);alert(e&&e.message?e.message:JSON.stringify(e));setState("idle");}})();}} full color={C.accent} loading={state==="loading"} disabled={!ready||deployBlocked||state==="loading"}>
+            {`Deploy -- 1.5 SOL${pvpProtected?" + PVP Lock":""}`}
+          </Btn>
+
+
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function SummitMoon() {
+  const [selected,setSelected]=useState(null);
+  const [launching,setLaunching]=useState(false);
+  const [connected,setConnected]=useState(false);
+  const [walletPubkey,setWalletPubkey]=useState(null);
+
+  const connectWallet = async () => {
+    try {
+      const provider = window?.solana;
+      if (!provider?.isPhantom) { window.open("https://phantom.app","_blank"); return; }
+      const resp = await provider.connect();
+      setWalletPubkey(resp.publicKey.toString());
+      setConnected(true);
+    } catch(e) { console.error(e); }
+  };
+
+  const disconnectWallet = async () => {
+    try { await window?.solana?.disconnect(); } catch(e) {}
+    setConnected(false); setWalletPubkey(null);
+  };
+  const [filter,setFilter]=useState("hot");
+  const [view,setView]=useState("feed");
+  const [showNotifs,setShowNotifs]=useState(false);
+  const [showSlots,setShowSlots]=useState(false);
+  const [tokens,setTokens]=useState(INIT_TOKENS);
+  useEffect(()=>{fetchDeployedTokens().then(onChain=>{console.log("FETCHED ON-CHAIN:",onChain.length,onChain);if(onChain.length>0){setTokens(prev=>{const ids=new Set(onChain.map(t=>t.id));const kept=prev.filter(t=>!ids.has(t.id));return [...onChain,...kept];});}}).catch(e=>console.error("fetch tokens error:",e));},[]);
   const [notifs]=useState(MOCK_NOTIFS);
   const [platformVol,setPlatformVol]=useState(()=>INIT_TOKENS.reduce((a,t)=>a+(t.volRaw||0),0));
 
