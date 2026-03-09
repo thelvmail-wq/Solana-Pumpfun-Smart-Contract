@@ -162,6 +162,7 @@ export async function buildDeployTx(wallet, mintPubkey, ticker, imageHash, ident
   idHash.copy(data, 72)
   tickerRawBuf.copy(data, 104)
 
+  console.log("CREATOR pubkey:",creator.toBase58());console.log("MINT pubkey:",mint.toBase58());
   // Accounts must match RegisterToken struct order exactly:
   // token_registry, ticker_lock, image_lock, identity_lock, mint, creator, system_program
   const ix = new TransactionInstruction({
