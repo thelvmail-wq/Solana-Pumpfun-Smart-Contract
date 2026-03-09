@@ -3208,7 +3208,7 @@ export default function SummitMoon() {
   },[]);
 
   const unread=notifs.filter(n=>!n.read).length;
-  const slotData=calcSlots(platformVol, tokens.length);
+  const slotData={open:50,totalAvailable:50,cap:50,atCap:false,toNextSlot:0,tierPct:1,atFloor:false,tier:{label:"Launch"},nextTier:{cap:100,vol:100000}};
   const filtered=tokens.filter(t=>{
     if(filter==="hot") return t.chg>50&&t.mcap>500000;
     if(filter==="new") return t.elapsed<=30&&t.mcap<500000;
