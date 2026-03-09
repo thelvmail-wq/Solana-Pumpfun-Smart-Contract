@@ -10,6 +10,7 @@ const DISCRIMINATORS = {
   add_liquidity: Buffer.from('b59d59438fb63448', 'hex'),
   swap:          Buffer.from('f8c69e91e17587c8', 'hex'),
   create_token_registry: Buffer.from('ec4062c2843c7324', 'hex'),
+  claim_locks:   Buffer.from('50ac2a7b3fc26165', 'hex'),
 }
 
 // PDAs
@@ -26,23 +27,20 @@ export function getTokenRegistryPDA(mint) {
   return PublicKey.findProgramAddressSync([Buffer.from('token_registry'), mint.toBuffer()], PROGRAM_ID)
 }
 
-// Fetch all pools from program accounts
-export async function fetchPools() {
-  try {
-    const accounts = await connection.getProgramAccounts(PROGRAM_ID, {
-      filters: [{ dataSize: 500 }] // approximate pool account size
-    })
-    return accounts
-  } catch (e) {
-    console.error('fetchPools error:', e)
-    return []
-  }
+// ── Hash helpers ──────────────────────────────────────────────
+export async function sha256(data) {
+  const buf = typeof data === 'string' ? new TextEncoder().encode(data) : data
+  return Buffer.from(await crypto.subtle.digest('SHA-256', buf))
 }
 
-// Swap instruction
-export async function buildSwapTx(wallet, mintPubkey, solAmount, isBuy) {
+export async function hashTicker(ticker) {
+  return sha256(ticker.trim().toUpperCase())
+}
+
+// ── Swap instruction ──────────────────────────────────────────
+export async function buildSwapTx(walletPubkey, mintPubkey, solAmount, isBuy) {
   const mint = new PublicKey(mintPubkey)
-  const user = wallet.publicKey
+  const user = walletPubkey instanceof PublicKey ? walletPubkey : new PublicKey(walletPubkey)
 
   const [pool] = getPoolPDA(mint)
   const [global] = getGlobalPDA()
@@ -59,13 +57,13 @@ export async function buildSwapTx(wallet, mintPubkey, solAmount, isBuy) {
     { pubkey: poolTokenAcct,  isSigner: false, isWritable: true  },
     { pubkey: userTokenAcct,  isSigner: false, isWritable: true  },
     { pubkey: user,           isSigner: true,  isWritable: true  },
-    { pubkey: PublicKey.default, isSigner: false, isWritable: false }, // rent
+    { pubkey: PublicKey.default, isSigner: false, isWritable: false }, // rent sysvar
     { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
     { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
   ]
 
-  // data: discriminator + amount (u64 le) + direction (u8)
+  // data: discriminator(8) + amount(u64 LE) + direction(u8)
   const data = Buffer.alloc(8 + 8 + 1)
   DISCRIMINATORS.swap.copy(data, 0)
   data.writeBigUInt64LE(BigInt(Math.floor(solAmount * LAMPORTS_PER_SOL)), 8)
@@ -73,8 +71,8 @@ export async function buildSwapTx(wallet, mintPubkey, solAmount, isBuy) {
 
   const ix = new TransactionInstruction({ keys, programId: PROGRAM_ID, data })
 
-  // Create user token account if needed
   const tx = new Transaction()
+  // Create user ATA if needed
   const acctInfo = await connection.getAccountInfo(userTokenAcct)
   if (!acctInfo) {
     tx.add(createAssociatedTokenAccountInstruction(user, userTokenAcct, user, mint))
@@ -88,10 +86,10 @@ export async function buildSwapTx(wallet, mintPubkey, solAmount, isBuy) {
   return tx
 }
 
-// Add liquidity (deploy token)
-export async function buildAddLiquidityTx(wallet, mintPubkey, solAmount) {
+// ── Add liquidity ─────────────────────────────────────────────
+export async function buildAddLiquidityTx(walletPubkey, mintPubkey, solAmount) {
   const mint = new PublicKey(mintPubkey)
-  const user = wallet.publicKey
+  const user = walletPubkey instanceof PublicKey ? walletPubkey : new PublicKey(walletPubkey)
 
   const [pool] = getPoolPDA(mint)
   const [global] = getGlobalPDA()
@@ -128,33 +126,25 @@ export async function buildAddLiquidityTx(wallet, mintPubkey, solAmount) {
   return tx
 }
 
-// Deploy token: create_token_registry (single instruction — creates registry + all 3 lock PDAs)
-export async function buildDeployTx(wallet, mintPubkey, ticker, imageHash, identityHash) {
+// ══════════════════════════════════════════════════════════════
+// create_token_registry — 4 ACCOUNTS ONLY
+// [token_registry, mint, creator, system_program]
+// ══════════════════════════════════════════════════════════════
+export async function buildCreateRegistryTx(creatorPubkey, mintPubkey, ticker, imageHashBuf, identityHashBuf) {
   const mint = new PublicKey(mintPubkey)
-  const creator = wallet
+  const creator = creatorPubkey instanceof PublicKey ? creatorPubkey : new PublicKey(creatorPubkey)
+
+  const tickerBuf = await hashTicker(ticker)
+  const imgHash = imageHashBuf || Buffer.alloc(32)
+  const idHash = identityHashBuf || Buffer.alloc(32)
+
   const [tokenRegistry] = getTokenRegistryPDA(mint)
-
-  // ticker hash
-  const enc = new TextEncoder()
-  const tickerHash = await crypto.subtle.digest('SHA-256', enc.encode(ticker.trim().toUpperCase()))
-  const tickerBuf = Buffer.from(new Uint8Array(tickerHash))
-
-  // image + identity hashes (32 bytes each, zero-filled if not provided)
-  const imgHash = Buffer.alloc(32)
-  if (imageHash) Buffer.from(imageHash).copy(imgHash)
-  const idHash = Buffer.alloc(32)
-  if (identityHash) Buffer.from(identityHash).copy(idHash)
-
-  // Derive lock PDAs using the same hash buffers as the instruction data
-  const [tickerLock] = PublicKey.findProgramAddressSync([Buffer.from('ticker_lock'), tickerBuf], PROGRAM_ID)
-  const [imageLock] = PublicKey.findProgramAddressSync([Buffer.from('image_lock'), imgHash], PROGRAM_ID)
-  const [identityLock] = PublicKey.findProgramAddressSync([Buffer.from('identity_lock'), idHash], PROGRAM_ID)
 
   // ticker_raw: first 16 bytes of raw ticker string, null-padded
   const tickerRawBuf = Buffer.alloc(16)
-  Buffer.from(ticker.slice(0, 16)).copy(tickerRawBuf)
+  Buffer.from(ticker.trim().toUpperCase().slice(0, 16)).copy(tickerRawBuf)
 
-  // Instruction data: disc(8) + ticker_hash(32) + image_hash(32) + identity_hash(32) + ticker_raw(16) = 120 bytes
+  // data: disc(8) + ticker_hash(32) + image_hash(32) + identity_hash(32) + ticker_raw(16) = 120
   const data = Buffer.alloc(120)
   DISCRIMINATORS.create_token_registry.copy(data, 0)
   tickerBuf.copy(data, 8)
@@ -162,17 +152,54 @@ export async function buildDeployTx(wallet, mintPubkey, ticker, imageHash, ident
   idHash.copy(data, 72)
   tickerRawBuf.copy(data, 104)
 
-  console.log("CREATOR pubkey:",creator.toBase58());console.log("MINT pubkey:",mint.toBase58());
-  // Accounts must match RegisterToken struct order exactly:
-  // token_registry, ticker_lock, image_lock, identity_lock, mint, creator, system_program
+  // *** CRITICAL: 4 accounts ONLY — sending 7 causes AccountNotSigner (3010) ***
   const ix = new TransactionInstruction({
     keys: [
-      { pubkey: tokenRegistry, isSigner: false, isWritable: true },
-      { pubkey: tickerLock,    isSigner: false, isWritable: true },
-      { pubkey: imageLock,     isSigner: false, isWritable: true },
-      { pubkey: identityLock,  isSigner: false, isWritable: true },
-      { pubkey: mint,          isSigner: false, isWritable: true },
-      { pubkey: creator,       isSigner: true,  isWritable: true },
+      { pubkey: tokenRegistry, isSigner: false, isWritable: true  },
+      { pubkey: mint,          isSigner: false, isWritable: false },
+      { pubkey: creator,       isSigner: true,  isWritable: true  },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    programId: PROGRAM_ID,
+    data,
+  })
+
+  const tx = new Transaction()
+  tx.add(ix)
+  const { blockhash } = await connection.getLatestBlockhash()
+  tx.recentBlockhash = blockhash
+  tx.feePayer = creator
+  return { tx, tickerBuf, imgHash, idHash }
+}
+
+// ══════════════════════════════════════════════════════════════
+// claim_locks — SEPARATE instruction, 6 accounts
+// [token_registry, ticker_lock, image_lock, identity_lock, creator, system_program]
+// Args: [ticker_hash(32), image_hash(32), identity_hash(32)] = 96 bytes after disc
+// ══════════════════════════════════════════════════════════════
+export async function buildClaimLocksTx(creatorPubkey, mintPubkey, tickerBuf, imgHashBuf, idHashBuf) {
+  const mint = new PublicKey(mintPubkey)
+  const creator = creatorPubkey instanceof PublicKey ? creatorPubkey : new PublicKey(creatorPubkey)
+
+  const [tokenRegistry] = getTokenRegistryPDA(mint)
+  const [tickerLock] = PublicKey.findProgramAddressSync([Buffer.from('ticker_lock'), tickerBuf], PROGRAM_ID)
+  const [imageLock] = PublicKey.findProgramAddressSync([Buffer.from('image_lock'), imgHashBuf], PROGRAM_ID)
+  const [identityLock] = PublicKey.findProgramAddressSync([Buffer.from('identity_lock'), idHashBuf], PROGRAM_ID)
+
+  // data: disc(8) + ticker_hash(32) + image_hash(32) + identity_hash(32) = 104
+  const data = Buffer.alloc(104)
+  DISCRIMINATORS.claim_locks.copy(data, 0)
+  tickerBuf.copy(data, 8)
+  imgHashBuf.copy(data, 40)
+  idHashBuf.copy(data, 72)
+
+  const ix = new TransactionInstruction({
+    keys: [
+      { pubkey: tokenRegistry, isSigner: false, isWritable: false },
+      { pubkey: tickerLock,    isSigner: false, isWritable: true  },
+      { pubkey: imageLock,     isSigner: false, isWritable: true  },
+      { pubkey: identityLock,  isSigner: false, isWritable: true  },
+      { pubkey: creator,       isSigner: true,  isWritable: true  },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     ],
     programId: PROGRAM_ID,
@@ -187,16 +214,20 @@ export async function buildDeployTx(wallet, mintPubkey, ticker, imageHash, ident
   return tx
 }
 
-
-// Fetch all TokenRegistry accounts from the program
-// TokenRegistry account size = 202 bytes
+// ══════════════════════════════════════════════════════════════
+// Fetch all TokenRegistry accounts (dataSize: 202)
+// ══════════════════════════════════════════════════════════════
 export async function fetchDeployedTokens() {
   try {
     const accounts = await connection.getProgramAccounts(PROGRAM_ID, {
       filters: [{ dataSize: 202 }]
     })
+    console.log(`fetchDeployedTokens: found ${accounts.length} registries`)
     return accounts.map(({ pubkey, account }) => {
       const data = account.data
+      // Layout: disc(8) + mint(32) + ticker_hash(32) + image_hash(32) + identity_hash(32)
+      //       + ticker_raw(16) + is_protected(1) + protected_at(8) + creator(32) + created_at(8)
+      //       = 8+32+32+32+32+16+1+8+32+8 = 201... +1 padding? = 202
       const mint = new PublicKey(data.slice(8, 40))
       const tickerRaw = data.slice(136, 152)
       const tickerEnd = tickerRaw.indexOf(0)
@@ -208,23 +239,38 @@ export async function fetchDeployedTokens() {
       const ageMs = Date.now() - createdAtTs * 1000
       const ageMins = Math.floor(ageMs / 60000)
       const ageDays = Math.floor(ageMs / 86400000)
+
+      console.log(`  Token: ${ticker || 'UNKNOWN'} | mint: ${mint.toBase58().slice(0,8)}... | age: ${ageMins}m`)
+
       return {
         id: mint.toBase58(),
         pubkey: pubkey.toBase58(),
         mint: mint.toBase58(),
-        sym: ticker || "UNKNOWN",
-        name: ticker || "Unknown Token",
+        mintAddress: mint.toBase58(),
+        sym: ticker || 'UNKNOWN',
+        name: ticker || 'Unknown Token',
         pi: Math.abs(data[8] + data[9]) % 8,
-        mcap: 0, chg: 0, prog: 0, holders: 0,
+        mcap: 0,
+        chg: 0,
+        prog: 0,
+        holders: 0,
         age: ageDays,
-        raisedSOL: 0, raisedSOLMax: 85,
+        raisedSOL: 0,
+        raisedSOLMax: 85,
         elapsed: ageMins,
-        vol: "$0", volRaw: 0, txs: 0,
-        desc: "Deployed on-chain",
-        bondingFull: false, minsAgo: ageMins,
-        graduated: false, topicLocked: false,
-        topicSource: null, topicTitle: null,
-        tw: null, tg: null, web: null,
+        vol: '$0',
+        volRaw: 0,
+        txs: 0,
+        desc: 'Deployed on-chain',
+        bondingFull: false,
+        minsAgo: ageMins,
+        graduated: false,
+        topicLocked: false,
+        topicSource: null,
+        topicTitle: null,
+        tw: null,
+        tg: null,
+        web: null,
         creator: creatorKey.toBase58(),
         createdAt: createdAtTs,
         isProtected,
@@ -232,7 +278,7 @@ export async function fetchDeployedTokens() {
       }
     })
   } catch (e) {
-    console.error("fetchDeployedTokens error:", e)
+    console.error('fetchDeployedTokens error:', e)
     return []
   }
 }

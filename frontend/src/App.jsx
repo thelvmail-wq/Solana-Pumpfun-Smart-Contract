@@ -1,4 +1,4 @@
-import { buildSwapTx, buildDeployTx, fetchDeployedTokens, connection } from "./solana.js";
+import { buildSwapTx, buildCreateRegistryTx, buildClaimLocksTx, fetchDeployedTokens, connection, sha256 } from "./solana.js";
 import { useState, useEffect, useRef } from "react";
 
 // ── Design direction: High-end crypto editorial ─────────────────
@@ -3107,9 +3107,10 @@ function FeedRow({t, onClick, rank}) {
 }
 
 function TabFeed({tokens, onSelect}) {
-  const [tab, setTab] = useState("new");
+  const [tab, setTab] = useState("all");
 
   const tabs = [
+    {id:"all",    label:"All",         color:C.text,   tokens: [...tokens].sort((a,b)=>(b.volRaw||0)-(a.volRaw||0))},
     {id:"new",    label:"New",         color:C.blue,   tokens: [...tokens].filter(t=>t.elapsed<=90).sort((a,b)=>a.elapsed-b.elapsed)},
     {id:"hot",    label:"Hot",         color:C.accent, tokens: [...tokens].filter(t=>t.chg>30&&!t.graduated).sort((a,b)=>(b.volRaw||0)-(a.volRaw||0))},
     {id:"near",   label:"Near Grad",   color:C.purple, tokens: [...tokens].filter(t=>(t.raisedSOL||0)>=40&&!t.bondingFull).sort((a,b)=>(b.raisedSOL||0)-(a.raisedSOL||0))},
