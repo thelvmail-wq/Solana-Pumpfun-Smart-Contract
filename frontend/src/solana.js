@@ -156,7 +156,7 @@ export async function buildCreateRegistryTx(creatorPubkey, mintPubkey, ticker, i
   const ix = new TransactionInstruction({
     keys: [
       { pubkey: tokenRegistry, isSigner: false, isWritable: true  },
-      { pubkey: mint,          isSigner: false, isWritable: false },
+      { pubkey: mint,          isSigner: false, isWritable: true  },
       { pubkey: creator,       isSigner: true,  isWritable: true  },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     ],
