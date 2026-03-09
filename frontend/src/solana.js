@@ -128,3 +128,55 @@ export async function buildAddLiquidityTx(wallet, mintPubkey, solAmount) {
 
   return tx
 }
+
+// Deploy token: create_token_registry + claim_locks
+export async function buildDeployTx(wallet, mintPubkey, ticker, imageHash, identityHash) {
+  const mint = new PublicKey(mintPubkey)
+  const creator = wallet
+  const [tokenRegistry] = getTokenRegistryPDA(mint)
+
+  // ticker hash
+  const enc = new TextEncoder()
+  const tickerHash = await crypto.subtle.digest('SHA-256', enc.encode(ticker.trim().toUpperCase()))
+  const tickerBuf = Buffer.from(tickerHash)
+  const [tickerLock] = PublicKey.findProgramAddressSync([Buffer.from('ticker_lock'), tickerBuf], PROGRAM_ID)
+  const [imageLock] = PublicKey.findProgramAddressSync([Buffer.from('image_lock'), Buffer.from(imageHash||new Uint8Array(32))], PROGRAM_ID)
+  const [identityLock] = PublicKey.findProgramAddressSync([Buffer.from('identity_lock'), Buffer.from(identityHash||new Uint8Array(32))], PROGRAM_ID)
+
+  // ix1: create_token_registry
+  const data1 = Buffer.alloc(8)
+  DISCRIMINATORS.create_token_registry.copy(data1, 0)
+  const ix1 = new TransactionInstruction({
+    keys: [
+      { pubkey: tokenRegistry, isSigner: false, isWritable: true },
+      { pubkey: mint,          isSigner: false, isWritable: false },
+      { pubkey: creator,       isSigner: true,  isWritable: true },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    programId: PROGRAM_ID,
+    data: data1,
+  })
+
+  // ix2: claim_locks
+  const data2 = Buffer.alloc(8)
+  DISCRIMINATORS.claim_locks.copy(data2, 0)
+  const ix2 = new TransactionInstruction({
+    keys: [
+      { pubkey: tokenRegistry, isSigner: false, isWritable: true },
+      { pubkey: tickerLock,    isSigner: false, isWritable: true },
+      { pubkey: imageLock,     isSigner: false, isWritable: true },
+      { pubkey: identityLock,  isSigner: false, isWritable: true },
+      { pubkey: creator,       isSigner: true,  isWritable: true },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    programId: PROGRAM_ID,
+    data: data2,
+  })
+
+  const tx = new Transaction()
+  tx.add(ix1, ix2)
+  const { blockhash } = await connection.getLatestBlockhash()
+  tx.recentBlockhash = blockhash
+  tx.feePayer = creator
+  return tx
+}

@@ -1,4 +1,4 @@
-import { buildSwapTx, connection } from "./solana.js";
+import { buildSwapTx, buildDeployTx, connection } from "./solana.js";
 import { useState, useEffect, useRef } from "react";
 
 // ── Design direction: High-end crypto editorial ─────────────────
@@ -2023,7 +2023,7 @@ function LaunchModal({onClose,slotData}) {
           {deployBlocked&&!tickerBlock&&!imageBlock&&<div style={{padding:"9px 12px",background:C.redBg,border:`1px solid ${C.redBd}`,borderRadius:9,marginBottom:10}}><Label size={12} color={C.red}>Resolve all conflicts above to deploy.</Label></div>}
 
           {/* Primary CTA - bonding curve */}
-          <Btn onClick={()=>{if(!ready||deployBlocked)return;setBondMode("curve");setState("loading");setTimeout(()=>setState("done"),1600);}} full color={C.accent} loading={state==="loading"&&bondMode==="curve"} disabled={!ready||deployBlocked||state==="loading"}>
+          <Btn onClick={()=>{if(!ready||deployBlocked)return;setBondMode("curve");setState("loading");(async()=>{try{const provider=window?.solana;const mint=window.crypto.getRandomValues(new Uint8Array(32));const {Keypair}=await import("@solana/web3.js");const mintKp=Keypair.generate();const tx=await buildDeployTx(provider.publicKey,mintKp.publicKey.toString(),form.ticker||"TEST",null,null);const {blockhash}=await connection.getLatestBlockhash();tx.recentBlockhash=blockhash;tx.feePayer=provider.publicKey;const signed=await provider.signTransaction(tx);const sig=await connection.sendRawTransaction(signed.serialize());await connection.confirmTransaction(sig);setState("done");}catch(e){console.error(e);alert(e.message);setState("idle");}})();}} full color={C.accent} loading={state==="loading"&&bondMode==="curve"} disabled={!ready||deployBlocked||state==="loading"}>
             {`Deploy -- 1.5 SOL${pvpProtected?" + PVP Lock":""}`}
           </Btn>
 
