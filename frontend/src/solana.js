@@ -44,7 +44,7 @@ export async function buildSwapTx(walletPubkey, mintPubkey, solAmount, isBuy) {
 
   const [pool] = getPoolPDA(mint)
   const [global] = getGlobalPDA()
-  const [dexConfig] = PublicKey.findProgramAddressSync([Buffer.from('dex_config')], PROGRAM_ID)
+  const [dexConfig] = PublicKey.findProgramAddressSync([Buffer.from('CurveConfiguration')], PROGRAM_ID)
 
   const poolTokenAcct = await getAssociatedTokenAddress(mint, pool, true)
   const userTokenAcct = await getAssociatedTokenAddress(mint, user)
