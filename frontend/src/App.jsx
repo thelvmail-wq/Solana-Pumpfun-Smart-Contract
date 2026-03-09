@@ -1,3 +1,4 @@
+import { buildSwapTx, connection } from "./solana.js";
 import { useState, useEffect, useRef } from "react";
 
 // ── Design direction: High-end crypto editorial ─────────────────
@@ -1240,7 +1241,7 @@ function SwapPanel({t,connected,onConnect}) {
         </div>
       )}
 
-      <Btn onClick={()=>{if(!connected){onConnect();return;}if(wouldExceed)return;setLoading(true);setTimeout(()=>{setLoading(false);setDone(true);},1400);}} full color={tab==="buy"?C.green:C.red} loading={loading} disabled={!amt||wouldExceed}>
+      <Btn onClick={()=>{if(!connected){onConnect();return;}if(wouldExceed)return;setLoading(true);(async()=>{try{const provider=window?.solana;const mintPk=new (await import('@solana/web3.js')).PublicKey(t.mint||t.id);const tx=await buildSwapTx(provider.publicKey,mintPk,parseFloat(amt),tab==="buy");tx.feePayer=provider.publicKey;const {blockhash}=await connection.getLatestBlockhash();tx.recentBlockhash=blockhash;const signed=await provider.signTransaction(tx);const sig=await connection.sendRawTransaction(signed.serialize());await connection.confirmTransaction(sig);setDone(true);}catch(e){console.error(e);alert(e.message);}finally{setLoading(false);}})();}} full color={tab==="buy"?C.green:C.red} loading={loading} disabled={!amt||wouldExceed}>
         {!connected?"Connect wallet":wouldExceed?"Exceeds launch cap":`${tab==="buy"?"Buy":"Sell"}${amt?` ${amt} ${tab==="buy"?"SOL":"tokens"}`:""}`}
       </Btn>
     </div>
