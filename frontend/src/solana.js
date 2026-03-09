@@ -171,7 +171,7 @@ export async function buildDeployTx(wallet, mintPubkey, ticker, imageHash, ident
       { pubkey: tickerLock,    isSigner: false, isWritable: true },
       { pubkey: imageLock,     isSigner: false, isWritable: true },
       { pubkey: identityLock,  isSigner: false, isWritable: true },
-      { pubkey: mint,          isSigner: false, isWritable: true },
+      { pubkey: mint,          isSigner: false, isWritable: false },
       { pubkey: creator,       isSigner: true,  isWritable: true },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     ],
