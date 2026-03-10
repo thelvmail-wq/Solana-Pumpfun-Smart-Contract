@@ -1037,6 +1037,7 @@ function tokensToSolApprox(tokens, mcap) { return (tokens/BONDING_SUPPLY_UI) * (
 
 function CapBar({elapsedMins, myHolding, tokensOut, graduated}) {
   if(graduated) return null;
+  return null; // disabled
   const cw = getLaunchCap(elapsedMins);
   if(cw.bps===10000) return (
     <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:"rgba(34,197,94,0.06)",border:"1px solid rgba(34,197,94,0.15)",borderRadius:8,marginBottom:10}}>
@@ -1184,26 +1185,6 @@ function SwapPanel({t,connected,onConnect}) {
         </div>
       )}
 
-      {/* Lockup toggle (buy only) */}
-      {tab==="buy"&&(
-        <div style={{marginBottom:10}}>
-          <button onClick={()=>setShowLock(x=>!x)} style={{width:"100%",background:"transparent",border:`1px solid ${C.border}`,borderRadius:11,padding:"11px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",marginBottom:showLock?8:0}}>
-            <Label size={13} color={C.textSec}>Lockup boost</Label>
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              {lock>0&&<Label size={13} color={C.accent} weight={600}>+{(lb*100).toFixed(0)}%</Label>}
-              <Label size={13} color={C.textTer}>{showLock?"-":"+"}</Label>
-            </div>
-          </button>
-          {showLock&&(
-            <div style={{display:"flex",gap:6}}>
-              {LOCK_OPTIONS.map(o=>(
-                <button key={o.days} onClick={()=>setLock(o.days)} style={{flex:1,padding:"8px 4px",borderRadius:9,border:`1px solid ${lock===o.days?C.accent+"55":C.border}`,background:lock===o.days?C.accentBg:"transparent",cursor:"pointer",textAlign:"center"}}>
-                  <Label size={12} color={lock===o.days?C.accent:C.textTer} weight={600}>{o.label}</Label>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
       )}
 
       <Btn onClick={()=>{if(!connected){onConnect();return;}if(wouldExceed)return;setLoading(true);(async()=>{try{const provider=window?.solana;const mintStr=t.mint||t.mintAddress;if(!mintStr){alert("No mint address — token not yet on-chain");setLoading(false);return;}const mintPk=new (await import('@solana/web3.js')).PublicKey(mintStr);const tx=await buildSwapTx(provider.publicKey,mintPk,parseFloat(amt),tab==="buy");tx.feePayer=provider.publicKey;const {blockhash}=await connection.getLatestBlockhash();tx.recentBlockhash=blockhash;const signed=await provider.signTransaction(tx);const sig=await connection.sendRawTransaction(signed.serialize());await connection.confirmTransaction(sig);setDone(true);}catch(e){console.error(e);alert(e.message);}finally{setLoading(false);}})();}} full color={tab==="buy"?C.green:C.red} loading={loading} disabled={!amt||wouldExceed}>
@@ -1504,18 +1485,7 @@ function TokenPage({t,onClose,connected,onConnect}) {
             {rightTab==="swap"&&(
               <div style={{animation:"fadeUp 0.15s ease"}}>
                 <SwapPanel t={t} connected={connected} onConnect={onConnect}/>
-                <div style={{marginTop:12,padding:"12px 14px",background:C.card,borderRadius:8,border:`1px solid ${C.border}`}}>
-                  <Label size={10} color={C.textTer} style={{display:"block",marginBottom:10,letterSpacing:0.4,textTransform:"uppercase"}}>Whitelist eligibility</Label>
-                  {[{n:"1",t:"Bonding curve fills at 85 SOL"},{n:"2",t:"5-min anti-snipe delay post-graduation (1hr during bonding phase)"},{n:"3",t:"LP migrates to Raydium — locked forever, compounds on every trade"},{n:"4",t:"1.5% total fee — 0.25% goes to quarterly USDC airdrop pool"},{n:"5",t:"USDC lands in your wallet automatically — no staking, no claiming"},{n:"6",t:"Points = Avg Balance x Time Multiplier + Trade Volume x 0.001"},{n:"7",t:"Top 10 above $500K: quarterly USDC airdrop based on points balance"}].map(r=>(
-                    <div key={r.n} style={{display:"flex",alignItems:"flex-start",gap:8,marginBottom:8}}>
-                      <div style={{width:18,height:18,borderRadius:5,background:C.accentBg,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:1}}>
-                        <Label size={9} color={C.accent} weight={700}>{r.n}</Label>
-                      </div>
-                      <Label size={12} color={C.textSec} style={{lineHeight:1.5}}>{r.t}</Label>
-                    </div>
-                  ))}
                 </div>
-              </div>
             )}
 
             {/* DRIP */}
