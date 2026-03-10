@@ -1,4 +1,4 @@
-import { buildSwapTx, buildCreateRegistryTx, buildClaimLocksTx, fetchDeployedTokens, fetchAllTokensWithPools, connection, sha256 } from "./solana.js";
+import { buildSwapTx, buildCreateRegistryTx, buildClaimLocksTx, fetchDeployedTokens, fetchAllTokensWithPools, connection, sha256, fetchHolderCount } from "./solana.js";
 import { useState, useEffect, useRef } from "react";
 
 // ── Design direction: High-end crypto editorial ─────────────────
@@ -176,11 +176,18 @@ const DAILY_LAUNCHES      = 50;
 const PLATFORM_DAILY_VOL  = 15_000_000;
 
 const INIT_TOKENS = [];
-const HOLDERS = [];
 const MY_POSITIONS = [];
 const MY_TOKENS = [];
 const MOCK_NOTIFS = [];
 const MOCK_DEX = {};
+
+// Smart age display: 5m, 3h, 2d, 14d
+function fmtAge(ageDays, elapsedMins) {
+  if (ageDays >= 1) return `${ageDays}d`;
+  if (elapsedMins >= 60) return `${Math.floor(elapsedMins / 60)}h`;
+  if (elapsedMins >= 1) return `${elapsedMins}m`;
+  return '<1m';
+}
 
 const fmt = n => n>=1e6?`$${(n/1e6).toFixed(1)}M`:n>=1e3?`$${(n/1e3).toFixed(0)}K`:`$${n}`;
 const getMI = m => m>=1e8?7:m>=75e6?6:m>=5e7?5:m>=4e7?4:m>=3e7?3:m>=2e7?2:m>=1e7?1:0;
@@ -648,6 +655,78 @@ function AirdropGate({t}) {
   );
 }
 
+// ===== LIVE HOLDERS TAB =====
+
+function HoldersTab({t, as}) {
+  const [holders, setHolders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!t.mint && !t.mintAddress) { setLoading(false); return; }
+    const mintStr = t.mint || t.mintAddress;
+    setLoading(true);
+    (async () => {
+      try {
+        const { PublicKey } = await import('@solana/web3.js');
+        const mint = new PublicKey(mintStr);
+        const result = await connection.getTokenLargestAccounts(mint);
+        const totalSupplyRaw = 1_000_000_000; // 1B tokens with 9 decimals
+        const list = result.value
+          .filter(a => a.uiAmount > 0)
+          .map((a, i) => ({
+            rank: i + 1,
+            wallet: a.address.toBase58().slice(0, 4) + '...' + a.address.toBase58().slice(-4),
+            walletFull: a.address.toBase58(),
+            amount: a.uiAmount,
+            pct: ((a.uiAmount / totalSupplyRaw) * 100).toFixed(2),
+          }));
+        setHolders(list);
+      } catch (e) {
+        console.error('HoldersTab fetch error:', e);
+        setHolders([]);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [t.mint, t.mintAddress]);
+
+  return (
+    <div style={{animation:"fadeUp 0.15s ease"}}>
+      <div style={{marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <Label size={14} color={C.text} weight={600}>Top Holders</Label>
+        {as.s==="live"&&<Label size={11} color={C.green}>Airdrop active</Label>}
+        {as.s==="pending"&&<Label size={11} color={C.gold}>Snapshot in {as.minsLeft}m</Label>}
+      </div>
+      <GlassCard style={{overflow:"hidden",padding:0}} hover={false}>
+        {loading && (
+          <div style={{padding:"32px 16px",textAlign:"center"}}>
+            <Label size={13} color={C.textQuat} style={{animation:"pulse 1.5s infinite"}}>Loading holders...</Label>
+          </div>
+        )}
+        {!loading && holders.length === 0 && (
+          <div style={{padding:"32px 16px",textAlign:"center"}}>
+            <Label size={13} color={C.textQuat}>No holders found</Label>
+          </div>
+        )}
+        {!loading && holders.map((h,i)=>(
+          <div key={h.walletFull} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderBottom:i<holders.length-1?`1px solid ${C.border}`:"none",background:h.rank<=3?"rgba(255,159,10,0.03)":"transparent"}}>
+            <div style={{width:24,height:24,borderRadius:7,background:h.rank===1?`linear-gradient(135deg,${C.gold},#e6960a)`:C.sheet,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              <Label size={10} color={h.rank===1?"#000":C.textTer} weight={700}>{h.rank}</Label>
+            </div>
+            <div style={{flex:1,minWidth:0}}>
+              <Label size={11} color={C.textSec} mono>{h.wallet}</Label>
+              <div style={{marginTop:2}}><Label size={10} color={C.textQuat} mono>{Number(h.amount).toLocaleString(undefined,{maximumFractionDigits:0})} tokens</Label></div>
+            </div>
+            <div style={{textAlign:"right",flexShrink:0}}>
+              <Label size={13} color={h.rank<=3?C.gold:C.text} weight={600}>{h.pct}%</Label>
+            </div>
+          </div>
+        ))}
+      </GlassCard>
+    </div>
+  );
+}
+
 // ===== SWAP PANEL =====
 
 const BONDING_SUPPLY_UI = 650_000_000;
@@ -940,7 +1019,7 @@ function TokenPage({t,onClose,connected,onConnect}) {
             </div>
           </div>
           <div style={{borderTop:`1px solid ${C.border}`,padding:"10px 16px",display:"flex",gap:0,flexShrink:0,background:"rgba(0,0,0,0.4)"}}>
-            {[["Volume",t.vol],["Txns",t.txs.toLocaleString()],["Holders",t.holders.toLocaleString()],["Multiplier",`${mil.multi}x`],["Age",`${t.age}d`],["Raised",`${t.raisedSOL||0}/${t.raisedSOLMax||85} SOL`]].map((s,i,a)=>(
+            {[["Volume",t.vol],["Txns",t.txs.toLocaleString()],["Holders",t.holders.toLocaleString()],["Multiplier",`${mil.multi}x`],["Age",fmtAge(t.age, t.elapsed)],["Raised",`${t.raisedSOL||0}/${t.raisedSOLMax||85} SOL`]].map((s,i,a)=>(
               <div key={s[0]} style={{flex:1,paddingRight:i<a.length-1?12:0,borderRight:i<a.length-1?`1px solid ${C.border}`:"none",paddingLeft:i>0?12:0}}>
                 <Label size={10} color={C.textTer} style={{display:"block",marginBottom:3,letterSpacing:0.3}}>{s[0]}</Label>
                 <Label size={12} color={C.text} weight={500}>{s[1]}</Label>
@@ -1007,33 +1086,7 @@ function TokenPage({t,onClose,connected,onConnect}) {
             )}
 
             {rightTab==="holders"&&(
-              <div style={{animation:"fadeUp 0.15s ease"}}>
-                <div style={{marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                  <Label size={14} color={C.text} weight={600}>Top Holders</Label>
-                  {as.s==="live"&&<Label size={11} color={C.green}>Airdrop active</Label>}
-                  {as.s==="pending"&&<Label size={11} color={C.gold}>Snapshot in {as.minsLeft}m</Label>}
-                </div>
-                <GlassCard style={{overflow:"hidden",padding:0}} hover={false}>
-                  {HOLDERS.length === 0 && (
-                    <div style={{padding:"32px 16px",textAlign:"center"}}>
-                      <Label size={13} color={C.textQuat}>No holder data yet</Label>
-                    </div>
-                  )}
-                  {HOLDERS.map((h,i)=>(
-                    <div key={h.rank} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderBottom:i<19?`1px solid ${C.border}`:"none",background:h.rank<=3?"rgba(255,159,10,0.03)":"transparent"}}>
-                      <div style={{width:24,height:24,borderRadius:7,background:h.rank===1?`linear-gradient(135deg,${C.gold},#e6960a)`:C.sheet,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                        <Label size={10} color={h.rank===1?"#000":C.textTer} weight={700}>{h.rank}</Label>
-                      </div>
-                      <div style={{flex:1,minWidth:0}}>
-                        <Label size={11} color={C.textSec} mono>{h.wallet}</Label>
-                      </div>
-                      <div style={{textAlign:"right",flexShrink:0}}>
-                        <Label size={13} color={C.text} weight={600}>{h.pct}%</Label>
-                      </div>
-                    </div>
-                  ))}
-                </GlassCard>
-              </div>
+              <HoldersTab t={t} as={as}/>
             )}
           </div>
         </div>
