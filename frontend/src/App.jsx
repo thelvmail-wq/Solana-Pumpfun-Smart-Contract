@@ -668,18 +668,30 @@ function HoldersTab({t, as}) {
     (async () => {
       try {
         const { PublicKey } = await import('@solana/web3.js');
+        const { getAssociatedTokenAddress } = await import('@solana/spl-token');
+        const { getGlobalPDA } = await import('./solana.js');
         const mint = new PublicKey(mintStr);
+        const [global] = getGlobalPDA();
+        const poolAta = await getAssociatedTokenAddress(mint, global, true);
+        const poolAtaStr = poolAta.toBase58();
+
         const result = await connection.getTokenLargestAccounts(mint);
-        const totalSupplyRaw = 1_000_000_000; // 1B tokens with 9 decimals
+        const totalSupplyRaw = 1_000_000_000;
         const list = result.value
           .filter(a => a.uiAmount > 0)
-          .map((a, i) => ({
-            rank: i + 1,
-            wallet: a.address.toBase58().slice(0, 4) + '...' + a.address.toBase58().slice(-4),
-            walletFull: a.address.toBase58(),
-            amount: a.uiAmount,
-            pct: ((a.uiAmount / totalSupplyRaw) * 100).toFixed(2),
-          }));
+          .map((a, i) => {
+            const addr = a.address.toBase58();
+            const isPool = addr === poolAtaStr;
+            return {
+              rank: i + 1,
+              wallet: addr.slice(0, 4) + '...' + addr.slice(-4),
+              walletFull: addr,
+              amount: a.uiAmount,
+              pct: ((a.uiAmount / totalSupplyRaw) * 100).toFixed(2),
+              isPool,
+              label: isPool ? 'Bonding Curve' : null,
+            };
+          });
         setHolders(list);
       } catch (e) {
         console.error('HoldersTab fetch error:', e);
@@ -709,16 +721,26 @@ function HoldersTab({t, as}) {
           </div>
         )}
         {!loading && holders.map((h,i)=>(
-          <div key={h.walletFull} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderBottom:i<holders.length-1?`1px solid ${C.border}`:"none",background:h.rank<=3?"rgba(255,159,10,0.03)":"transparent"}}>
-            <div style={{width:24,height:24,borderRadius:7,background:h.rank===1?`linear-gradient(135deg,${C.gold},#e6960a)`:C.sheet,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-              <Label size={10} color={h.rank===1?"#000":C.textTer} weight={700}>{h.rank}</Label>
-            </div>
+          <div key={h.walletFull} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderBottom:i<holders.length-1?`1px solid ${C.border}`:"none",background:h.isPool?"rgba(201,168,76,0.04)":h.rank<=3?"rgba(255,159,10,0.03)":"transparent"}}>
+            {/* Rank or icon */}
+            {h.isPool ? (
+              <div style={{width:24,height:24,borderRadius:7,background:C.accentBg,border:`1px solid ${C.accentBd}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+              </div>
+            ) : (
+              <div style={{width:24,height:24,borderRadius:7,background:h.rank===1?`linear-gradient(135deg,${C.gold},#e6960a)`:C.sheet,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                <Label size={10} color={h.rank===1?"#000":C.textTer} weight={700}>{h.rank}</Label>
+              </div>
+            )}
             <div style={{flex:1,minWidth:0}}>
-              <Label size={11} color={C.textSec} mono>{h.wallet}</Label>
+              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                <Label size={11} color={h.isPool?C.accent:C.textSec} mono weight={h.isPool?600:400}>{h.isPool?'Bonding Curve':h.wallet}</Label>
+                {h.isPool&&<Tag color={C.accent}>Pool</Tag>}
+              </div>
               <div style={{marginTop:2}}><Label size={10} color={C.textQuat} mono>{Number(h.amount).toLocaleString(undefined,{maximumFractionDigits:0})} tokens</Label></div>
             </div>
             <div style={{textAlign:"right",flexShrink:0}}>
-              <Label size={13} color={h.rank<=3?C.gold:C.text} weight={600}>{h.pct}%</Label>
+              <Label size={13} color={h.isPool?C.accent:h.rank<=3?C.gold:C.text} weight={600}>{h.pct}%</Label>
             </div>
           </div>
         ))}
