@@ -1368,6 +1368,7 @@ function DexBadge({sym}) {
 // ===== FULL TOKEN PAGE =====
 
 function TokenPage({t,onClose,connected,onConnect}) {
+  t={...t,txs:t.txs||0,vol:t.vol||"$0",volRaw:t.volRaw||0,holders:t.holders||0,prog:t.prog||0,age:t.age||0,raisedSOL:t.raisedSOL||0,raisedSOLMax:t.raisedSOLMax||85,elapsed:t.elapsed||0,mcap:t.mcap||0,chg:t.chg||0,bondingFull:t.bondingFull||false,graduated:t.graduated||false,topicLocked:t.topicLocked||false,sym:t.sym||"???",name:t.name||t.sym||"Unknown",desc:t.desc||"",minsAgo:t.minsAgo||0,pi:t.pi||0};
   const [range,setRange]=useState("1H");
   const [rightTab,setRightTab]=useState("swap");
   const [candles]=useState(()=>genCandles(80,0.00004+Math.random()*0.0001));
@@ -3021,6 +3022,7 @@ function SlotPanel({slotData, platformVol, tokens, onClose, onLaunch}) {
 // ===== TAB FEED =====
 
 function FeedRow({t, onClick, rank}) {
+  t={...t,txs:t.txs||0,vol:t.vol||"$0",volRaw:t.volRaw||0,holders:t.holders||0,raisedSOL:t.raisedSOL||0,mcap:t.mcap||0,chg:t.chg||0,bondingFull:t.bondingFull||false,graduated:t.graduated||false,sym:t.sym||"???",name:t.name||t.sym||"Unknown",pi:t.pi||0,minsAgo:t.minsAgo||0,elapsed:t.elapsed||0};
   const p = PALETTES[t.pi%8], up = t.chg>0, as = getAS(t);
   const solPct = Math.min(100,((t.raisedSOL||0)/85)*100);
   const barCol = t.bondingFull?C.green:(t.raisedSOL||0)>=60?C.purple:p.a;
