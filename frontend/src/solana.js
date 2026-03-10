@@ -282,3 +282,51 @@ export async function fetchDeployedTokens() {
     return []
   }
 }
+
+// Fetch pool data for a mint
+export async function fetchPoolData(mintPubkey) {
+  try {
+    const mint = new PublicKey(mintPubkey)
+    const [pool] = getPoolPDA(mint)
+    const acct = await connection.getAccountInfo(pool)
+    if (!acct) return null
+    const d = acct.data
+    const reserveOne = Number(d.readBigUInt64LE(80))
+    const reserveTwo = Number(d.readBigUInt64LE(88))
+    const launchTs = Number(d.readBigInt64LE(97))
+    const graduated = d[105] === 1
+    const totalSolRaised = Number(d.readBigUInt64LE(106))
+    const creator = new PublicKey(d.slice(114, 146))
+    const airdropPool = Number(d.readBigUInt64LE(146))
+    const solReserve = reserveTwo / 1e9
+    const tokenReserve = reserveOne / 1e9
+    const solPrice = 180
+    const raisedSOL = totalSolRaised / 1e9
+    const pricePerToken = tokenReserve > 0 ? solReserve / tokenReserve : 0
+    const mcap = Math.round(pricePerToken * 1e9 * solPrice)
+    return {
+      hasPool: true, solReserve, tokenReserve, raisedSOL, mcap, pricePerToken,
+      graduated, launchTs, creator: creator.toBase58(),
+      airdropPool: airdropPool / 1e9,
+      bondingFull: raisedSOL >= 85,
+      prog: Math.min(100, Math.round((raisedSOL / 85) * 100)),
+    }
+  } catch (e) {
+    console.error("fetchPoolData error:", e.message)
+    return null
+  }
+}
+
+// Fetch all tokens with real pool stats
+export async function fetchAllTokensWithPools() {
+  const tokens = await fetchDeployedTokens()
+  const enriched = await Promise.all(tokens.map(async (t) => {
+    const pool = await fetchPoolData(t.mint)
+    if (pool) {
+      const v = pool.mcap > 1e6 ? "$"+(pool.mcap/1e6).toFixed(1)+"M" : pool.mcap > 1e3 ? "$"+(pool.mcap/1e3).toFixed(0)+"K" : "$"+pool.mcap
+      return { ...t, mcap: pool.mcap, raisedSOL: pool.raisedSOL, bondingFull: pool.bondingFull, graduated: pool.graduated, prog: pool.prog, hasPool: true, vol: v }
+    }
+    return { ...t, hasPool: false }
+  }))
+  return enriched
+}

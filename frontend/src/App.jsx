@@ -1,4 +1,4 @@
-import { buildSwapTx, buildCreateRegistryTx, buildClaimLocksTx, fetchDeployedTokens, connection, sha256 } from "./solana.js";
+import { buildSwapTx, buildCreateRegistryTx, buildClaimLocksTx, fetchDeployedTokens, fetchAllTokensWithPools, connection, sha256 } from "./solana.js";
 import { useState, useEffect, useRef } from "react";
 
 // ── Design direction: High-end crypto editorial ─────────────────
@@ -3209,7 +3209,7 @@ export default function SummitMoon() {
   const [showNotifs,setShowNotifs]=useState(false);
   const [showSlots,setShowSlots]=useState(false);
   const [tokens,setTokens]=useState(INIT_TOKENS);
-  useEffect(()=>{fetchDeployedTokens().then(onChain=>{if(onChain.length>0){setTokens(prev=>{const ids=new Set(onChain.map(t=>t.id));const kept=prev.filter(t=>!ids.has(t.id));return [...onChain,...kept];});}}).catch(e=>console.error("fetch tokens error:",e));},[]);
+  useEffect(()=>{fetchAllTokensWithPools().then(onChain=>{if(onChain.length>0){setTokens(onChain);}}).catch(e=>console.error("fetch tokens error:",e));},[]);
   const [notifs]=useState(MOCK_NOTIFS);
   const [platformVol,setPlatformVol]=useState(()=>INIT_TOKENS.reduce((a,t)=>a+(t.volRaw||0),0));
 
