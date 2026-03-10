@@ -266,52 +266,17 @@ const CLAIM_MODES = [
   {v:"usdc",     icon:"$", label:"USDC",        col:"#0a84ff", desc:"15% haircut: 10% burned forever, 5% back to vault pool.",     lock:"48hr lock"},
 ];
 
-const INIT_TOKENS = [
-  // mcap for pre-grad tokens = raisedSOL * 180 * ~1.8 (spot price × total supply on sqrt curve)
-  // mcap for graduated tokens = free market post-Raydium (realistic pump-style multiples)
-  {id:1,sym:"JERRY",vaultDays:156,vaultActive:true,name:"Jerry Coin",pi:0,mcap:Math.round(62*180*1.85),chg:+284,prog:42,holders:1243,age:2,raisedSOL:62,raisedSOLMax:85,elapsed:8,vol:"$182K",volRaw:182000,txs:2841,desc:"community favourite",bondingFull:false,minsAgo:73,graduated:false,topicLocked:false,topicSource:null,topicTitle:null,tw:"jerryCoinSol",tg:"jerrycoin",web:"jerrycoin.xyz"},
-  {id:2,sym:"GBRAIN",vaultDays:121,vaultActive:true,name:"Gigabrain",pi:1,mcap:18700000,chg:+91,prog:71,holders:4891,age:6,raisedSOL:85,raisedSOLMax:85,elapsed:45,vol:"$1.2M",volRaw:1200000,txs:14203,desc:"big brain energy",bondingFull:true,minsAgo:210,graduated:false,topicLocked:true,topicSource:"X",topicTitle:"@naval: the only real edge is thinking",tw:"gigabrainsol",tg:"gigabrain",web:"gigabrain.io"},
-  {id:3,sym:"VOID",vaultDays:0,vaultActive:false,name:"Voidwalker",pi:2,mcap:Math.round(18*180*1.85),chg:-12,prog:18,holders:312,age:9,raisedSOL:18,raisedSOLMax:85,elapsed:82,vol:"$31K",volRaw:31000,txs:412,desc:"into the void",bondingFull:false,minsAgo:38,graduated:false,topicLocked:false,topicSource:null,topicTitle:null,tw:"voidwalkerSol",tg:"voidwalker",web:null},
-  {id:4,sym:"SFRG",vaultDays:89,vaultActive:true,name:"Sol Forge",pi:3,mcap:67200000,chg:+412,prog:89,holders:9234,age:1,raisedSOL:85,raisedSOLMax:85,elapsed:3,vol:"$8.4M",volRaw:8400000,txs:98231,desc:"forging the future",bondingFull:true,minsAgo:52,graduated:true,topicLocked:true,topicSource:"Bloomberg",topicTitle:"Solana hits $500 amid institutional surge",tw:"solforgeio",tg:"solforge",web:"solforge.io"},
-  {id:5,sym:"MRAT",vaultDays:168,vaultActive:true,name:"Moon Rat",pi:4,mcap:Math.round(31*180*1.85),chg:+44,prog:31,holders:788,age:4,raisedSOL:31,raisedSOLMax:85,elapsed:22,vol:"$94K",volRaw:94000,txs:3201,desc:"little rat, big moon",bondingFull:false,minsAgo:18,graduated:false,topicLocked:false,topicSource:null,topicTitle:null,tw:"moonratsol",tg:"moonrat",web:null},
-  {id:6,sym:"IRON",vaultDays:112,vaultActive:true,name:"Iron Hand",pi:5,mcap:31000000,chg:+178,prog:63,holders:3120,age:3,raisedSOL:85,raisedSOLMax:85,elapsed:55,vol:"$2.1M",volRaw:2100000,txs:41200,desc:"diamond hands",bondingFull:true,minsAgo:140,graduated:true,topicLocked:true,topicSource:"Reuters",topicTitle:"Iron ore futures hit 8-month high on China data",tw:"ironhandSol",tg:"ironhand",web:"ironhand.finance"},
-  {id:7,sym:"PHNT",vaultDays:0,vaultActive:false,name:"Phantom",pi:6,mcap:Math.round(58*180*1.85),chg:+33,prog:55,holders:2100,age:5,raisedSOL:58,raisedSOLMax:85,elapsed:38,vol:"$340K",volRaw:340000,txs:8820,desc:"you can't catch a phantom",bondingFull:false,minsAgo:62,graduated:false,topicLocked:false,topicSource:null,topicTitle:null,tw:"phantomcoinSol",tg:"phantomcoin",web:null},
-  {id:8,sym:"ECLP",vaultDays:0,vaultActive:false,name:"Eclipse",pi:7,mcap:Math.round(6*180*1.85),chg:-8,prog:9,holders:98,age:11,raisedSOL:6,raisedSOLMax:85,elapsed:90,vol:"$12K",volRaw:12000,txs:198,desc:"total eclipse incoming",bondingFull:false,minsAgo:0,graduated:false,topicLocked:false,topicSource:null,topicTitle:null,tw:null,tg:"eclipsesol",web:null},
-];
+const INIT_TOKENS = [];
 
-const HOLDERS = Array.from({length:20},(_,i)=>({
-  rank:i+1,
-  wallet:`${(0xf1a2+i*317).toString(16).slice(0,4)}...${(0x9c3e+i*211).toString(16).slice(0,4)}`,
-  pct:parseFloat(Math.max(0.8,(14.2-i*0.9)).toFixed(1)),
-  lockDays:[180,180,90,90,90,30,30,30,7,7,7,7,0,0,0,0,0,0,0,0][i],
-  streak:i<5,whitelisted:true,inTop10:true,
-  dripMode:["reinject","token","reinject","usdc","token","reinject","usdc","reinject","token","reinject","usdc","reinject","reinject","token","usdc","reinject","reinject","token","reinject","reinject"][i],
-  boost:[0.75,0.75,0.5,0.5,0.5,0.25,0.25,0.25,0.1,0.1,0.1,0.1,0,0,0,0,0,0,0,0][i],
-}));
+const HOLDERS = [];
 
-const MY_POSITIONS = [
-  {sym:"JERRY",pi:0,held:14200,entry:0.000041,current:0.000158,pnlPct:+285,whitelisted:true,inTop10:true,pendingDrip:0.042,dripMode:"token"},
-  {sym:"GBRAIN",pi:1,held:8800,entry:0.000190,current:0.000364,pnlPct:+91,whitelisted:true,inTop10:false,pendingDrip:0,dripMode:"usdc"},
-  {sym:"PHNT",pi:6,held:31000,entry:0.000088,current:0.000117,pnlPct:+33,whitelisted:false,inTop10:false,pendingDrip:0,dripMode:"reinject"},
-];
+const MY_POSITIONS = [];
 
-const MY_TOKENS = [
-  {sym:"JERRY",pi:0,mcap:Math.round(62*180*1.85),chg:+284,vol:"$182K",feesEarned:0.847,holders:1243,launched:"2d ago"},
-  {sym:"ECLP",pi:7,mcap:Math.round(6*180*1.85),chg:-8,vol:"$12K",feesEarned:0.031,holders:98,launched:"11d ago"},
-];
+const MY_TOKENS = [];
 
-const MOCK_NOTIFS = [
-  {id:1,type:"whitelist",msg:"Whitelisted on JERRY -- drips active",time:"2m ago",read:false,color:C.green},
-  {id:2,type:"drip",msg:"0.042 SOL drip injected into JERRY",time:"14m ago",read:false,color:C.accent},
-  {id:3,type:"milestone",msg:"GBRAIN $5M milestone -- 4% pool released",time:"1h ago",read:true,color:C.gold},
-  {id:4,type:"bundle",msg:"Bundle attempt blocked on MRAT",time:"3h ago",read:true,color:C.red},
-  {id:5,type:"topic",msg:"SFRG topic locked -- Bloomberg article claimed",time:"1d ago",read:true,color:C.teal},
-];
+const MOCK_NOTIFS = [];
 
-const MOCK_DEX = {
-  "SFRG":{price:"0.000412",chg24:"+18.4",vol24:"$840K",liq:"$220K"},
-  "IRON":{price:"0.000831",chg24:"+6.1",vol24:"$2.1M",liq:"$910K"},
-};
+const MOCK_DEX = {};
 
 const fmt = n => n>=1e6?`$${(n/1e6).toFixed(1)}M`:n>=1e3?`$${(n/1e3).toFixed(0)}K`:`$${n}`;
 const getMI = m => m>=1e8?7:m>=75e6?6:m>=5e7?5:m>=4e7?4:m>=3e7?3:m>=2e7?2:m>=1e7?1:0;
