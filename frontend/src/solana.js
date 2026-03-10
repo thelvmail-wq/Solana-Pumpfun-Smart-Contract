@@ -46,7 +46,7 @@ export async function buildSwapTx(walletPubkey, mintPubkey, solAmount, isBuy) {
   const [global] = getGlobalPDA()
   const [dexConfig] = PublicKey.findProgramAddressSync([Buffer.from('CurveConfiguration')], PROGRAM_ID)
 
-  const poolTokenAcct = await getAssociatedTokenAddress(mint, pool, true)
+  const poolTokenAcct = await getAssociatedTokenAddress(mint, global, true)
   const userTokenAcct = await getAssociatedTokenAddress(mint, user)
 
   const keys = [
@@ -95,7 +95,7 @@ export async function buildAddLiquidityTx(walletPubkey, mintPubkey, solAmount) {
   const [global] = getGlobalPDA()
   const [liquidityProvider] = getLiquidityProviderPDA(mint, user)
 
-  const poolTokenAcct = await getAssociatedTokenAddress(mint, pool, true)
+  const poolTokenAcct = await getAssociatedTokenAddress(mint, global, true)
   const userTokenAcct = await getAssociatedTokenAddress(mint, user)
 
   const keys = [
