@@ -67,7 +67,7 @@ export async function buildSwapTx(walletPubkey, mintPubkey, solAmount, isBuy) {
   const data = Buffer.alloc(8 + 8 + 8)
   DISCRIMINATORS.swap.copy(data, 0)
   data.writeBigUInt64LE(BigInt(Math.floor(solAmount * LAMPORTS_PER_SOL)), 8)
-  data.writeBigUInt64LE(BigInt(isBuy ? 1 : 0), 16)
+  data.writeBigUInt64LE(BigInt(isBuy ? 0 : 1), 16)
 
   const ix = new TransactionInstruction({ keys, programId: PROGRAM_ID, data })
 
