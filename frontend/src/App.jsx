@@ -3178,19 +3178,7 @@ export default function SummitMoon() {
   const [notifs]=useState(MOCK_NOTIFS);
   const [platformVol,setPlatformVol]=useState(()=>INIT_TOKENS.reduce((a,t)=>a+(t.volRaw||0),0));
 
-  useEffect(()=>{
-    const iv=setInterval(()=>{
-      setTokens(prev=>{
-        const updated=prev.map(t=>{
-          const volDelta=Math.floor(Math.random()*2000);
-          return {...t,mcap:Math.max(100000,t.mcap*(1+(Math.random()-0.49)*0.007)),chg:parseFloat((t.chg+(Math.random()-0.5)*0.4).toFixed(1)),volRaw:(t.volRaw||0)+volDelta};
-        });
-        setPlatformVol(updated.reduce((a,t)=>a+(t.volRaw||0),0));
-        return updated;
-      });
-    },3000);
-    return ()=>clearInterval(iv);
-  },[]);
+
 
   const unread=notifs.filter(n=>!n.read).length;
   const slotData={open:50,totalAvailable:50,cap:50,atCap:false,toNextSlot:0,tierPct:1,atFloor:false,tier:{label:"Launch"},nextTier:{cap:100,vol:100000}};
