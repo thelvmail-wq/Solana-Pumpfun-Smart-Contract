@@ -1393,7 +1393,7 @@ function TokenPage({t,onClose,connected,onConnect}) {
           )}
           <div style={{width:1,height:24,background:C.border,marginLeft:4}}/>
           <div style={{textAlign:"right"}}>
-            <Label size={17} color={C.text} weight={700}>0.000{t.pricePerToken ? (t.pricePerToken*180).toFixed(7) : "0.0000000"}</Label>
+            <Label size={17} color={C.text} weight={700}>{t.pricePerToken ? (t.pricePerToken*180).toFixed(8) : "0.00000000"}</Label>
             <div><Label size={12} color={up?C.green:C.red} weight={500}>{up?"+":""}{t.chg.toFixed(1)}%</Label><Label size={12} color={C.textTer} style={{marginLeft:6}}>{fmt(t.mcap)} MC</Label></div>
           </div>
         </div>
@@ -1408,7 +1408,7 @@ function TokenPage({t,onClose,connected,onConnect}) {
           {/* Chart header */}
           <div style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:`1px solid ${C.border}`,flexShrink:0}}>
             <div>
-              <Label size={26} color={C.text} weight={700}>0.000{t.pricePerToken ? (t.pricePerToken*180).toFixed(7) : "0.0000000"}</Label>
+              <Label size={26} color={C.text} weight={700}>{t.pricePerToken ? (t.pricePerToken*180).toFixed(8) : "0.00000000"}</Label>
               <Label size={13} color={up?C.green:C.red} weight={500} style={{marginLeft:8}}>{up?"+":""}{t.chg.toFixed(1)}% 24h</Label>
             </div>
             <div style={{display:"flex",gap:4,alignItems:"center"}}>
