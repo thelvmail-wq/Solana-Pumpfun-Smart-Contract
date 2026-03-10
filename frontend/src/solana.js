@@ -37,6 +37,20 @@ export async function hashTicker(ticker) {
   return sha256(ticker.trim().toUpperCase())
 }
 
+// ── Fetch holder count for a mint ─────────────────────────────
+export async function fetchHolderCount(mintPubkey) {
+  try {
+    const mint = new PublicKey(mintPubkey)
+    const result = await connection.getTokenLargestAccounts(mint)
+    // Count accounts with non-zero balance
+    const holders = result.value.filter(a => a.uiAmount > 0).length
+    return holders
+  } catch (e) {
+    console.warn('fetchHolderCount error:', e.message)
+    return 0
+  }
+}
+
 // ── Swap instruction ──────────────────────────────────────────
 export async function buildSwapTx(walletPubkey, mintPubkey, solAmount, isBuy) {
   const mint = new PublicKey(mintPubkey)
@@ -225,9 +239,6 @@ export async function fetchDeployedTokens() {
     console.log(`fetchDeployedTokens: found ${accounts.length} registries`)
     return accounts.map(({ pubkey, account }) => {
       const data = account.data
-      // Layout: disc(8) + mint(32) + ticker_hash(32) + image_hash(32) + identity_hash(32)
-      //       + ticker_raw(16) + is_protected(1) + protected_at(8) + creator(32) + created_at(8)
-      //       = 8+32+32+32+32+16+1+8+32+8 = 201... +1 padding? = 202
       const mint = new PublicKey(data.slice(8, 40))
       const tickerRaw = data.slice(136, 152)
       const tickerEnd = tickerRaw.indexOf(0)
@@ -317,14 +328,42 @@ export async function fetchPoolData(mintPubkey) {
   }
 }
 
-// Fetch all tokens with real pool stats
+// Fetch all tokens with real pool stats + holder count
 export async function fetchAllTokensWithPools() {
   const tokens = await fetchDeployedTokens()
   const enriched = await Promise.all(tokens.map(async (t) => {
     const pool = await fetchPoolData(t.mint)
     if (pool) {
+      // Fetch real holder count
+      const holders = await fetchHolderCount(t.mint)
+
       const v = pool.mcap > 1e6 ? "$"+(pool.mcap/1e6).toFixed(1)+"M" : pool.mcap > 1e3 ? "$"+(pool.mcap/1e3).toFixed(0)+"K" : "$"+pool.mcap
-      return { ...t, mcap: pool.mcap, raisedSOL: pool.raisedSOL, bondingFull: pool.bondingFull, graduated: pool.graduated, prog: pool.prog, hasPool: true, vol: v, pricePerToken: pool.pricePerToken, solReserve: pool.solReserve, tokenReserve: pool.tokenReserve, airdropPool: pool.airdropPool, launchTs: pool.launchTs, age: Math.max(0, Math.floor((Date.now()/1000 - pool.launchTs) / 86400)) }
+
+      // Use pool launchTs for age calculations (more accurate than registry createdAt)
+      const nowSec = Math.floor(Date.now() / 1000)
+      const ageSec = nowSec - pool.launchTs
+      const ageDays = Math.max(0, Math.floor(ageSec / 86400))
+      const ageMins = Math.max(0, Math.floor(ageSec / 60))
+
+      return {
+        ...t,
+        mcap: pool.mcap,
+        raisedSOL: pool.raisedSOL,
+        bondingFull: pool.bondingFull,
+        graduated: pool.graduated,
+        prog: pool.prog,
+        hasPool: true,
+        vol: v,
+        pricePerToken: pool.pricePerToken,
+        solReserve: pool.solReserve,
+        tokenReserve: pool.tokenReserve,
+        airdropPool: pool.airdropPool,
+        launchTs: pool.launchTs,
+        holders: holders,
+        age: ageDays,
+        elapsed: ageMins,
+        minsAgo: ageMins,
+      }
     }
     return { ...t, hasPool: false }
   }))
