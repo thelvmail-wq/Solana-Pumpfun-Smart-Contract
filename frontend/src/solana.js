@@ -57,7 +57,7 @@ export async function buildSwapTx(walletPubkey, mintPubkey, solAmount, isBuy) {
     { pubkey: poolTokenAcct,  isSigner: false, isWritable: true  },
     { pubkey: userTokenAcct,  isSigner: false, isWritable: true  },
     { pubkey: user,           isSigner: true,  isWritable: true  },
-    { pubkey: PublicKey.default, isSigner: false, isWritable: false }, // rent sysvar
+    { pubkey: new PublicKey('SysvarRent111111111111111111111111111111111'), isSigner: false, isWritable: false }, // rent sysvar
     { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
     { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
