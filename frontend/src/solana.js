@@ -302,8 +302,8 @@ export async function fetchPoolData(mintPubkey) {
     const tokenReserve = reserveOne / 1e9
     const solPrice = 180
     const raisedSOL = totalSolRaised / 1e9
-    const pricePerToken = tokenReserve > 0 ? solReserve / tokenReserve : 0
-    const mcap = Math.round(pricePerToken * 1e9 * solPrice)
+    const pricePerToken = reserveOne > 0 ? reserveTwo / reserveOne : 0
+    const mcap = reserveOne > 0 ? Math.round((reserveTwo / reserveOne) * 1e9 * solPrice) : 0
     return {
       hasPool: true, solReserve, tokenReserve, raisedSOL, mcap, pricePerToken,
       graduated, launchTs, creator: creator.toBase58(),
