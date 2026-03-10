@@ -691,31 +691,31 @@ function SwapPanel({t,connected,onConnect}) {
   return (
     <div>
       {/* Buy/Sell toggle */}
-      <div style={{display:"flex",background:"rgba(255,255,255,0.05)",borderRadius:13,padding:3,marginBottom:18}}>
+      <div style={{display:"flex",background:"rgba(255,255,255,0.05)",borderRadius:10,padding:2,marginBottom:12}}>
         {["buy","sell"].map(s=>(
-          <button key={s} onClick={()=>{setTab(s);setAmt("");}} style={{flex:1,height:38,borderRadius:10,border:"none",background:tab===s?"rgba(255,255,255,0.1)":"transparent",color:tab===s?(s==="buy"?C.green:C.red):C.textTer,fontSize:14,fontWeight:tab===s?600:400,cursor:"pointer",transition:"all 0.12s",textTransform:"capitalize",letterSpacing:"-0.02em"}}>
+          <button key={s} onClick={()=>{setTab(s);setAmt("");}} style={{flex:1,height:34,borderRadius:8,border:"none",background:tab===s?"rgba(255,255,255,0.1)":"transparent",color:tab===s?(s==="buy"?C.green:C.red):C.textTer,fontSize:13,fontWeight:tab===s?600:400,cursor:"pointer",transition:"all 0.12s",textTransform:"capitalize",letterSpacing:"-0.02em"}}>
             {s}
           </button>
         ))}
       </div>
 
       {/* Amount presets */}
-      <div style={{display:"flex",gap:6,marginBottom:10}}>
+      <div style={{display:"flex",gap:5,marginBottom:8}}>
         {(tab==="buy"?["0.1","0.5","1","5"]:["25%","50%","100%"]).map(v=>(
-          <button key={v} onClick={()=>setAmt(v.replace("%",""))} style={{flex:1,height:32,borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",color:C.textTer,fontSize:12,fontWeight:500,cursor:"pointer"}}>
+          <button key={v} onClick={()=>setAmt(v.replace("%",""))} style={{flex:1,height:28,borderRadius:6,border:`1px solid ${C.border}`,background:"transparent",color:C.textTer,fontSize:11,fontWeight:500,cursor:"pointer"}}>
             {v}{tab==="buy"?" SOL":""}
           </button>
         ))}
       </div>
 
       {/* Input */}
-      <div style={{position:"relative",marginBottom:10}}>
+      <div style={{position:"relative",marginBottom:8}}>
         <input value={amt} onChange={e=>setAmt(e.target.value)} placeholder="0.00"
-          style={{width:"100%",background:"rgba(255,255,255,0.04)",border:`1px solid ${wouldExceed?C.redBd:C.border}`,borderRadius:8,padding:"16px 52px 16px 18px",color:C.text,fontSize:20,fontWeight:400,outline:"none",boxSizing:"border-box",transition:"border-color 0.15s",fontVariantNumeric:"tabular-nums"}}
+          style={{width:"100%",background:"rgba(255,255,255,0.04)",border:`1px solid ${wouldExceed?C.redBd:C.border}`,borderRadius:8,padding:"12px 48px 12px 14px",color:C.text,fontSize:18,fontWeight:400,outline:"none",boxSizing:"border-box",transition:"border-color 0.15s",fontVariantNumeric:"tabular-nums"}}
           onFocus={e=>{e.target.style.borderColor=C.borderHi;}}
           onBlur={e=>{e.target.style.borderColor=wouldExceed?C.redBd:C.border;}}/>
-        <div style={{position:"absolute",right:14,top:"50%",transform:"translateY(-50%)"}}>
-          <Label size={13} color={C.textTer} weight={500}>{tab==="buy"?"SOL":"TKN"}</Label>
+        <div style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)"}}>
+          <Label size={12} color={C.textTer} weight={500}>{tab==="buy"?"SOL":"TKN"}</Label>
         </div>
       </div>
 
@@ -724,20 +724,20 @@ function SwapPanel({t,connected,onConnect}) {
 
       {/* Impact details */}
       {impact&&sol>0&&(
-        <div style={{background:C.sheet,borderRadius:12,padding:"12px 14px",marginBottom:10,border:`1px solid ${parseFloat(impact.impact)>5?C.redBd:C.border}`}}>
+        <div style={{background:C.sheet,borderRadius:8,padding:"10px 12px",marginBottom:8,border:`1px solid ${parseFloat(impact.impact)>5?C.redBd:C.border}`}}>
           {[["Price impact",`${impact.impact}%`,parseFloat(impact.impact)>5?C.red:C.textTer],["Fee",`${impact.fee} SOL`,C.textTer],["You receive",tab==="buy"?`~${Number(impact.recv).toLocaleString()} tokens`:`~${impact.recv} SOL`,C.text]].map(([l,v,c])=>(
-            <div key={l} style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-              <Label size={12} color={C.textTer}>{l}</Label>
-              <Label size={12} color={c} weight={500} mono>{v}</Label>
+            <div key={l} style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+              <Label size={11} color={C.textTer}>{l}</Label>
+              <Label size={11} color={c} weight={500} mono>{v}</Label>
             </div>
           ))}
         </div>
       )}
 
-      {/* Quarterly airdrop info — replaces old "web-only swap" notice */}
-      <div style={{display:"flex",alignItems:"flex-start",gap:8,padding:"10px 12px",background:C.goldBg,border:`1px solid ${C.goldBd}`,borderRadius:10,marginBottom:10}}>
-        <div style={{width:5,height:5,borderRadius:"50%",background:C.gold,flexShrink:0,marginTop:4}}/>
-        <Label size={11} color={C.gold}>0.50% of every trade goes to the quarterly USDC airdrop pool. All holders earn proportionally by balance — no staking, no claiming, automatic each quarter.</Label>
+      {/* Quarterly airdrop info */}
+      <div style={{display:"flex",alignItems:"flex-start",gap:7,padding:"8px 10px",background:C.goldBg,border:`1px solid ${C.goldBd}`,borderRadius:8,marginBottom:8}}>
+        <div style={{width:4,height:4,borderRadius:"50%",background:C.gold,flexShrink:0,marginTop:4}}/>
+        <Label size={10} color={C.gold}>0.50% of every trade → quarterly USDC airdrop. All holders earn by balance. No staking, automatic.</Label>
       </div>
 
       <Btn onClick={()=>{if(!connected){onConnect();return;}if(wouldExceed)return;setLoading(true);(async()=>{try{const provider=window?.solana;const mintStr=t.mint||t.mintAddress;if(!mintStr){alert("No mint address — token not yet on-chain");setLoading(false);return;}const mintPk=new (await import('@solana/web3.js')).PublicKey(mintStr);const tx=await buildSwapTx(provider.publicKey,mintPk,parseFloat(amt),tab==="buy");tx.feePayer=provider.publicKey;const {blockhash}=await connection.getLatestBlockhash();tx.recentBlockhash=blockhash;const signed=await provider.signTransaction(tx);const sig=await connection.sendRawTransaction(signed.serialize());await connection.confirmTransaction(sig);setDone(true);}catch(e){console.error(e);alert(e.message);}finally{setLoading(false);}})();}} full color={tab==="buy"?C.green:C.red} loading={loading} disabled={!amt||wouldExceed}>
@@ -763,7 +763,7 @@ function Card({t,onClick,rank}) {
           <Avatar sym={t.sym} pi={t.pi} size={42}/>
           <div>
             <Label size={16} color={C.text} weight={600}>{t.sym}</Label>
-            <div style={{marginTop:2}}><Label size={12} color={C.textTer} weight={400}>{t.name}</Label></div>
+            {t.name && t.name !== t.sym && <div style={{marginTop:2}}><Label size={12} color={C.textTer} weight={400}>{t.name}</Label></div>}
           </div>
         </div>
         <div style={{textAlign:"right"}}>
@@ -859,8 +859,8 @@ function TokenPage({t,onClose,connected,onConnect}) {
   const myPos=MY_POSITIONS.find(pos=>pos.sym===t.sym);
 
   return (
-    <div style={{height:"100vh",maxHeight:"100vh",background:C.bg,color:C.text,fontFamily:C.sans,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-      <style>{FONT}</style>
+    <div style={{height:"100vh",maxHeight:"100vh",background:C.bg,color:C.text,fontFamily:C.sans,display:"flex",flexDirection:"column",overflow:"hidden",position:"fixed",inset:0,zIndex:50}}>
+      <style>{FONT}{`body{overflow:hidden!important;}`}</style>
       <style>{`
         .tp-body { display:flex; flex:1; overflow:hidden; height:calc(100vh - 52px); }
         .tp-chart { flex:1; display:flex; flex-direction:column; overflow:hidden; border-right:1px solid ${C.border}; min-width:0; }
@@ -880,7 +880,7 @@ function TokenPage({t,onClose,connected,onConnect}) {
         <Avatar sym={t.sym} pi={t.pi} size={32}/>
         <div style={{flex:1,minWidth:0,display:"flex",alignItems:"center",gap:10}}>
           <Label size={16} color={C.text} weight={700}>{t.sym}</Label>
-          <Label size={12} color={C.textTer}>{t.name}</Label>
+          {t.name && t.name !== t.sym && <Label size={12} color={C.textTer}>{t.name}</Label>}
           {t.topicLocked&&<div style={{background:C.tealBg,border:`1px solid ${C.tealBd}`,borderRadius:6,padding:"2px 8px"}}><Label size={10} color={C.teal}>{t.topicSource} -- {t.topicTitle?.slice(0,36)}</Label></div>}
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
@@ -988,7 +988,7 @@ function TokenPage({t,onClose,connected,onConnect}) {
           <div style={{display:"flex",borderBottom:`1px solid ${C.border}`,flexShrink:0}}>
             {["swap","holders"].map(tb=>(
               <button key={tb} onClick={()=>setRightTab(tb)}
-                style={{flex:1,height:40,border:"none",background:"transparent",color:rightTab===tb?C.text:C.textTer,
+                style={{flex:1,height:36,border:"none",background:"transparent",color:rightTab===tb?C.text:C.textTer,
                   fontSize:12,fontWeight:rightTab===tb?600:400,cursor:"pointer",
                   textTransform:"capitalize",letterSpacing:"-0.01em",
                   borderBottom:rightTab===tb?`2px solid ${C.accent}`:"2px solid transparent",
@@ -999,7 +999,7 @@ function TokenPage({t,onClose,connected,onConnect}) {
           </div>
 
           {/* Right tab content - scrollable */}
-          <div style={{flex:1,overflowY:"auto",padding:"14px"}}>
+          <div style={{flex:1,overflowY:"auto",padding:"10px 12px"}}>
             {rightTab==="swap"&&(
               <div style={{animation:"fadeUp 0.15s ease"}}>
                 <SwapPanel t={t} connected={connected} onConnect={onConnect}/>
@@ -2053,7 +2053,7 @@ function FeedRow({t, onClick, rank}) {
       </div>
       <div style={{width:130,flexShrink:0}}>
         <Label size={14} color={C.text} weight={700} style={{display:"block",letterSpacing:"-0.02em"}}>{t.sym}</Label>
-        <Label size={11} color={C.textQuat} style={{display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:120}}>{t.name}</Label>
+        {t.name && t.name !== t.sym && <Label size={11} color={C.textQuat} style={{display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:120}}>{t.name}</Label>}
       </div>
       <div style={{width:72,flexShrink:0,marginRight:16}}>
         <Spark data={spark} color={up?C.green:C.red} width={72} height={26}/>
