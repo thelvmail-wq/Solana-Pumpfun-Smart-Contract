@@ -1043,20 +1043,20 @@ function CapBar({elapsedMins, myHolding, tokensOut, graduated}) {
   if(cw.bps===10000) return (
     <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:"rgba(34,197,94,0.06)",border:"1px solid rgba(34,197,94,0.15)",borderRadius:8,marginBottom:10}}>
       <div style={{width:6,height:6,borderRadius:"50%",background:C.green,flexShrink:0}}/>
-      <Label size={11} color={C.green}>Launch caps lifted — open trading</Label>
+      <Label size={11} color={C.green}>REMOVED_CAP</Label>
     </div>
   );
 
   const maxTok    = capTokens(cw.bps);
   const afterBuy  = myHolding + (tokensOut||0);
   const remaining = Math.max(0, maxTok - myHolding);
-  const wouldExceed = tokensOut>0 && afterBuy > maxTok;
+  const false = tokensOut>0 && afterBuy > maxTok;
   const usedPct   = Math.min(100, (myHolding/maxTok)*100);
   const willUsePct= Math.min(100, (afterBuy/maxTok)*100);
   const minsLeft  = cw.next ? cw.next - elapsedMins : 0;
 
   return (
-    <div style={{background:wouldExceed?"rgba(244,63,94,0.06)":"rgba(255,255,255,0.03)",border:`1px solid ${wouldExceed?C.redBd:C.border}`,borderRadius:10,padding:"11px 14px",marginBottom:10}}>
+    <div style={{background:false?"rgba(244,63,94,0.06)":"rgba(255,255,255,0.03)",border:`1px solid ${false?C.redBd:C.border}`,borderRadius:10,padding:"11px 14px",marginBottom:10}}>
       {/* Header row */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:7}}>
         <div style={{display:"flex",alignItems:"center",gap:6}}>
@@ -1072,7 +1072,7 @@ function CapBar({elapsedMins, myHolding, tokensOut, graduated}) {
         {/* current holding */}
         <div style={{position:"absolute",left:0,top:0,height:"100%",width:`${usedPct}%`,background:cw.col,opacity:0.6,borderRadius:99,transition:"width 0.4s ease"}}/>
         {/* this buy on top */}
-        {tokensOut>0&&<div style={{position:"absolute",left:0,top:0,height:"100%",width:`${Math.min(100,willUsePct)}%`,background:wouldExceed?C.red:cw.col,borderRadius:99,transition:"width 0.3s ease"}}/>}
+        {tokensOut>0&&<div style={{position:"absolute",left:0,top:0,height:"100%",width:`${Math.min(100,willUsePct)}%`,background:false?C.red:cw.col,borderRadius:99,transition:"width 0.3s ease"}}/>}
       </div>
 
       {/* Stats */}
@@ -1090,7 +1090,7 @@ function CapBar({elapsedMins, myHolding, tokensOut, graduated}) {
       </div>
 
       {/* Exceed warning */}
-      {wouldExceed&&(
+      {false&&(
         <div style={{marginTop:8,padding:"7px 10px",background:C.redBg,border:`1px solid ${C.redBd}`,borderRadius:7}}>
           <Label size={11} color={C.red} weight={600}>
             🚫 Exceeds cap by {(afterBuy-maxTok).toLocaleString()} tokens — on-chain buy will fail
@@ -1121,13 +1121,13 @@ function SwapPanel({t,connected,onConnect}) {
   // Simulated: current holding (0 for demo — in prod this comes from wallet ATA)
   const myHolding = 0;
   const capTokensMax = capTokens(cw.bps);
-  const wouldExceed = tab==="buy" && !t.graduated && cw.bps<10000 && (myHolding+tokensOut)>capTokensMax;
+  const false = tab==="buy" && !t.graduated && cw.bps<10000 && (myHolding+tokensOut)>capTokensMax;
 
   if(done) return (
     <div style={{textAlign:"center",padding:"32px 16px",animation:"scaleIn 0.2s ease"}}>
       <div style={{width:52,height:52,borderRadius:8,background:C.greenBg,border:`1px solid ${C.greenBd}`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px"}}><svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3.5 10L8 14.5L16.5 5.5" stroke={C.green} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg></div>
       <Label size={17} color={C.text} weight={600} style={{display:"block",marginBottom:6}}>Confirmed</Label>
-      <Label size={13} color={C.textSec} style={{display:"block",lineHeight:1.6,marginBottom:20}}>Hold your position. Top 10 at the $500K snapshot get whitelisted for drips.</Label>
+      <Label size={13} color={C.textSec} style={{display:"block",lineHeight:1.6,marginBottom:20}}>Trade confirmed on-chain.</Label>
       <Btn onClick={()=>{setDone(false);setAmt("");}} full>Done</Btn>
     </div>
   );
@@ -1155,9 +1155,9 @@ function SwapPanel({t,connected,onConnect}) {
       {/* Input */}
       <div style={{position:"relative",marginBottom:10}}>
         <input value={amt} onChange={e=>setAmt(e.target.value)} placeholder="0.00"
-          style={{width:"100%",background:"rgba(255,255,255,0.04)",border:`1px solid ${wouldExceed?C.redBd:C.border}`,borderRadius:8,padding:"16px 52px 16px 18px",color:C.text,fontSize:20,fontWeight:400,outline:"none",boxSizing:"border-box",transition:"border-color 0.15s",fontVariantNumeric:"tabular-nums"}}
+          style={{width:"100%",background:"rgba(255,255,255,0.04)",border:`1px solid ${false?C.redBd:C.border}`,borderRadius:8,padding:"16px 52px 16px 18px",color:C.text,fontSize:20,fontWeight:400,outline:"none",boxSizing:"border-box",transition:"border-color 0.15s",fontVariantNumeric:"tabular-nums"}}
           onFocus={e=>{e.target.style.borderColor=C.borderHi;}}
-          onBlur={e=>{e.target.style.borderColor=wouldExceed?C.redBd:C.border;}}/>
+          onBlur={e=>{e.target.style.borderColor=false?C.redBd:C.border;}}/>
         <div style={{position:"absolute",right:14,top:"50%",transform:"translateY(-50%)"}}>
           <Label size={13} color={C.textTer} weight={500}>{tab==="buy"?"SOL":"TKN"}</Label>
         </div>
@@ -1180,89 +1180,7 @@ function SwapPanel({t,connected,onConnect}) {
 
       {/* Web-only notice */}
       {!t.graduated&&(
-        <div style={{display:"flex",alignItems:"flex-start",gap:8,padding:"10px 12px",background:C.purpleBg,border:`1px solid ${C.purpleBd}`,borderRadius:10,marginBottom:10}}>
-          <div style={{width:5,height:5,borderRadius:"50%",background:C.purple,flexShrink:0,marginTop:4}}/>
-          <Label size={11} color={C.purple}>Web-only swap. Jupiter and Jito bundles are blocked during the bonding curve phase.</Label>
-        </div>
-      )}
-
-      {/* Lockup toggle (buy only) */}
-      {tab==="buy"&&(
-        
-      )}
-
-      <Btn onClick={()=>{if(!connected){onConnect();return;}if(wouldExceed)return;setLoading(true);(async()=>{try{const provider=window?.solana;const mintStr=t.mint||t.mintAddress;if(!mintStr){alert("No mint address — token not yet on-chain");setLoading(false);return;}const mintPk=new (await import('@solana/web3.js')).PublicKey(mintStr);const tx=await buildSwapTx(provider.publicKey,mintPk,parseFloat(amt),tab==="buy");tx.feePayer=provider.publicKey;const {blockhash}=await connection.getLatestBlockhash();tx.recentBlockhash=blockhash;const signed=await provider.signTransaction(tx);const sig=await connection.sendRawTransaction(signed.serialize());await connection.confirmTransaction(sig);setDone(true);}catch(e){console.error(e);alert(e.message);}finally{setLoading(false);}})();}} full color={tab==="buy"?C.green:C.red} loading={loading} disabled={!amt||wouldExceed}>
-        {!connected?"Connect wallet":wouldExceed?"Exceeds launch cap":`${tab==="buy"?"Buy":"Sell"}${amt?` ${amt} ${tab==="buy"?"SOL":"tokens"}`:""}`}
-      </Btn>
-    </div>
-  );
-}
-
-// ===== TOKEN CARD =====
-
-function Card({t,onClick,rank}) {
-  const p=PALETTES[t.pi%8],up=t.chg>0,as=getAS(t);
-  const spark=Array.from({length:20},(_,i)=>Math.max(0.3,0.5+Math.sin(i*0.4+t.pi)*0.3+Math.random()*0.4));
-  const rankColor = rank===1?C.gold:rank<=3?"rgba(255,255,255,0.5)":"rgba(255,255,255,0.18)";
-  return (
-    <GlassCard onClick={()=>onClick(t)} style={{padding:"18px 20px"}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
-        <div style={{display:"flex",alignItems:"center",gap:11}}>
-          {/* Rank number */}
-          <div style={{width:22,flexShrink:0,textAlign:"center"}}>
-            <Label size={rank<=3?15:13} color={rankColor} weight={700} mono>{rank}</Label>
-          </div>
-          <Avatar sym={t.sym} pi={t.pi} size={42}/>
-          <div>
-            <Label size={16} color={C.text} weight={600}>{t.sym}</Label>
-            <div style={{marginTop:2}}><Label size={12} color={C.textTer} weight={400}>{t.name}</Label></div>
-          </div>
-        </div>
-        <div style={{textAlign:"right"}}>
-          <Label size={17} color={C.text} weight={600}>{fmt(t.mcap)}</Label>
-          <div style={{marginTop:3}}><Label size={13} color={up?C.green:C.red} weight={500}>{up?"+":""}{t.chg.toFixed(1)}%</Label></div>
-        </div>
-      </div>
-
-      <div style={{marginBottom:10,display:"flex",justifyContent:"flex-end"}}>
-        <Spark data={spark} color={up?C.green:C.red}/>
-      </div>
-
-      <Label size={12} color={C.textTer} style={{display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginBottom:t.topicLocked?0:10}}>{t.desc}</Label>
-
-      {t.topicLocked&&<TopicChip source={t.topicSource} title={t.topicTitle}/>}
-
-      {(t.volRaw||0)>0&&(
-        <div style={{marginTop:10,display:"flex",alignItems:"center",gap:6,padding:"6px 10px",
-          background:"rgba(10,132,255,0.06)",border:`1px solid rgba(10,132,255,0.2)`,borderRadius:9}}>
-          <div style={{width:5,height:5,borderRadius:"50%",background:C.blue,flexShrink:0}}/>
-          <Label size={11} color={C.blue} weight={600}>
-            {"0.3% holder ~$"+((0).toFixed(2))+"/hr USDC"}
-          </Label>
-        </div>
-      )}
-      <div style={{display:"flex",gap:5,marginTop:8,flexWrap:"wrap",alignItems:"center"}}>
-        <Tag color={p.a}>{t.vol}</Tag>
-        <Tag color={C.textTer}>{t.holders.toLocaleString()} holders</Tag>
-        {as.s==="live"&&<Tag color={C.green}>Rewards live</Tag>}
-        {as.s==="pending"&&<Tag color={C.gold}>Snapshot {as.minsLeft}m</Tag>}
-        {t.graduated&&<Tag color={C.raydium}>On Raydium</Tag>}
-        {t.bondingFull&&!t.graduated&&<Tag color={C.accent}>Bonded</Tag>}
-        {(t.raisedSOL||0)>=60&&!t.bondingFull&&<Tag color={C.purple}>Near grad</Tag>}
-      </div>
-
-      {/* Bonding bar for non-graduated tokens */}
-      {!t.graduated&&(
-        <div style={{marginTop:12}}>
-          <div style={{height:2,background:"rgba(255,255,255,0.06)",borderRadius:99,overflow:"hidden"}}>
-            <div style={{width:`${Math.min(100,((t.raisedSOL||0)/85)*100)}%`,height:"100%",background:t.bondingFull?C.green:(t.raisedSOL||0)>=60?C.purple:p.a,borderRadius:99,transition:"width 1s ease"}}/>
-          </div>
-          <div style={{display:"flex",justifyContent:"space-between",marginTop:4}}>
-            <Label size={10} color={C.textQuat} mono>{t.raisedSOL||0} / 85 SOL</Label>
-            <Label size={10} color={C.textQuat}>{t.bondingFull?"bonded":`${85-(t.raisedSOL||0)} SOL left`}</Label>
-          </div>
-        </div>
-      )}
+        }
     </GlassCard>
   );
 }
@@ -2155,7 +2073,7 @@ function Tokenomics({onClose}) {
   const sections=[
     {id:"overview", label:"Overview"},
     {id:"fees",     label:"Fees"},
-    {id:"drip",     label:"Drip"},
+    
     {id:"vault",    label:"Vault"},
     {id:"slots",    label:"Slots"},
     {id:"pvp",      label:"PVP"},
