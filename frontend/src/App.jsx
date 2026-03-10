@@ -29,22 +29,18 @@ const FONT = `
 
 // ── Warm dark palette — editorial luxury ───────────────────────
 const C = {
-  // Backgrounds — warm near-black, not cold
   bg:       "#0d0c0b",
   surface:  "#111009",
   card:     "#161410",
   cardUp:   "#1c1916",
   sheet:    "#201d19",
-  // Borders — warm hairlines
   border:   "rgba(255,248,235,0.07)",
   borderMd: "rgba(255,248,235,0.11)",
   borderHi: "rgba(255,248,235,0.18)",
-  // Text — warm whites
   text:     "#faf6ef",
   textSec:  "rgba(250,246,239,0.58)",
   textTer:  "rgba(250,246,239,0.32)",
   textQuat: "rgba(250,246,239,0.16)",
-  // Semantic
   green:    "#22c55e",
   greenBg:  "rgba(34,197,94,0.08)",
   greenBd:  "rgba(34,197,94,0.18)",
@@ -63,20 +59,17 @@ const C = {
   teal:     "#2dd4bf",
   tealBg:   "rgba(45,212,191,0.07)",
   tealBd:   "rgba(45,212,191,0.15)",
-  // Brand — champagne gold, used sparingly
   accent:   "#c9a84c",
   accentBg: "rgba(201,168,76,0.08)",
   accentBd: "rgba(201,168,76,0.2)",
   raydium:  "#9945FF",
   raydiumBg:"rgba(153,69,255,0.08)",
   raydiumBd:"rgba(153,69,255,0.18)",
-  // Font stacks
   serif:    "'Instrument Serif', Georgia, serif",
   mono:     "'Geist Mono', 'SF Mono', ui-monospace, monospace",
   sans:     "'Inter', system-ui, sans-serif",
 };
 
-// Token avatar gradients — editorial, not garish
 const PALETTES = [
   {a:"#c9a84c",b:"#a06830",glow:"rgba(201,168,76,0.18)"},
   {a:"#22c55e",b:"#16a34a",glow:"rgba(34,197,94,0.18)"},
@@ -94,36 +87,13 @@ const MILESTONES = [
   {range:"$75-100M",multi:3.0},{range:"$100M+",multi:4.0},
 ];
 
-const MC_MILESTONES = [
-  {mc:1000000,label:"$1M",pct:3},{mc:1500000,label:"$1.5M",pct:3},
-  {mc:2000000,label:"$2M",pct:3},{mc:2500000,label:"$2.5M",pct:3},
-  {mc:3000000,label:"$3M",pct:3},{mc:5000000,label:"$5M",pct:4},
-  {mc:7500000,label:"$7.5M",pct:4},{mc:10000000,label:"$10M",pct:4},
-  {mc:15000000,label:"$15M",pct:4},{mc:20000000,label:"$20M",pct:5},
-  {mc:30000000,label:"$30M",pct:5},{mc:50000000,label:"$50M",pct:5},
-];
-
 const CAP_WINDOWS = [
   {until:7,pct:"1.5%",label:"0-7 min"},{until:14,pct:"2%",label:"7-14 min"},
   {until:30,pct:"5%",label:"14-30 min"},{until:999,pct:"Open",label:"30 min+"},
 ];
 
-const LOCK_OPTIONS = [
-  {days:0,label:"None",boost:0},{days:7,label:"7d",boost:0.10},
-  {days:30,label:"30d",boost:0.25},{days:90,label:"90d",boost:0.50},{days:180,label:"180d",boost:0.75},
-];
-
-
 // ===== SLOT ENGINE =====
-// Slots = volume-driven with variable cap tiers
-// Floor: always 10 open minimum regardless of volume
-// Cap: starts at 50, expands as cumulative platform volume hits milestones
-// Volume: every $10K traded earns +1 slot within the current cap
-// Midnight UTC: if slots < floor, reset to floor. If >= floor, no change.
-
-const SLOT_FLOOR = 10; // always available no matter what
-
-// Cap tier milestones - cumulative platform volume unlocks higher caps
+const SLOT_FLOOR = 10;
 const CAP_TIERS = [
   {vol: 0,          cap: 50,  label: "Tier 1"},
   {vol: 500000,     cap: 100, label: "Tier 2"},
@@ -133,7 +103,6 @@ const CAP_TIERS = [
 ];
 
 function getCurrentTier(totalVolume) {
-  // Walk tiers in reverse to find highest unlocked
   for(let i = CAP_TIERS.length-1; i >= 0; i--) {
     if(totalVolume >= CAP_TIERS[i].vol) return CAP_TIERS[i];
   }
@@ -144,37 +113,28 @@ function getNextTier(totalVolume) {
   for(let i = 0; i < CAP_TIERS.length; i++) {
     if(totalVolume < CAP_TIERS[i].vol) return CAP_TIERS[i];
   }
-  return null; // already at max tier
+  return null;
 }
 
 function calcSlots(totalVolume, tokensLaunched) {
   const tier     = getCurrentTier(totalVolume);
   const nextTier = getNextTier(totalVolume);
   const cap      = tier.cap;
-
-  // Within-day slots earned by volume (same mechanic, just capped at tier cap)
   const per10k    = Math.floor(totalVolume / 10000);
   const per100k   = Math.floor(totalVolume / 100000);
   const per1m     = Math.floor(totalVolume / 1000000);
   const volEarned = per10k + per100k * 2 + per1m * 5;
-
   const totalAvailable = Math.min(cap, Math.max(SLOT_FLOOR, volEarned));
   const open     = Math.max(0, totalAvailable - tokensLaunched);
-
-  // Vol to next within-day slot
   const toNextSlot = totalAvailable < cap
     ? (Math.ceil((totalVolume + 1) / 10000) * 10000) - totalVolume
     : 0;
-
-  // Vol to next tier cap expansion
   const toNextTier = nextTier ? nextTier.vol - totalVolume : 0;
   const tierPct    = nextTier
     ? Math.min(1, (totalVolume - tier.vol) / (nextTier.vol - tier.vol))
     : 1;
-
   const atFloor = totalAvailable <= SLOT_FLOOR;
   const atCap   = totalAvailable >= cap;
-
   return {
     open, totalAvailable, cap, tier, nextTier,
     toNextSlot, toNextTier, tierPct,
@@ -189,93 +149,37 @@ function fmtVol(n) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// SUMMIT.MOON — TOKENOMICS v4 — CLEAN SIMPLE MODEL
+// SUMMIT.MOON — TOKENOMICS — CLEAN SIMPLE MODEL
 // ═══════════════════════════════════════════════════════════════
-// Pump.fun: 1% fee, keeps 100%. Gives holders $0.
-// Summit:   1.5% fee. 0.25% → quarterly USDC airdrop pool.
-// That's it. Simple. No tiers. No sqrt math. Just hold more = earn more.
+// 1.5% fee. 0.25% → quarterly USDC airdrop pool.
+// Hold more = earn more. No tiers. No sqrt math. Simple.
 // ═══════════════════════════════════════════════════════════════
 
-// ── Supply ────────────────────────────────────────────────────
 const TOTAL_SUPPLY        = 1_000_000_000;
 const BONDING_PCT         = 0.65;
 const RESERVE_PCT         = 0.10;
 
-// ── Swap fee: 1.5% total ─────────────────────────────────────
+// Swap fee: 1.5% total
 const FEE_TOTAL           = 0.0150;
-const FEE_LP              = 0.0090;  // 0.90% 2192 LP
-const FEE_PROTOCOL        = 0.0035;  // 0.35% 2192 protocol
-const FEE_AIRDROP         = 0.0025;  // 0.25% 2192 quarterly USDC airdrop pool
+const FEE_LP              = 0.0060;  // 0.60% → LP
+const FEE_PROTOCOL        = 0.0040;  // 0.40% → protocol
+const FEE_AIRDROP         = 0.0050;  // 0.50% → quarterly USDC airdrop pool
 
-// ── Deploy fee: 1.5 SOL ───────────────────────────────────────
-const DEPLOY_LP_PCT       = 0.50;    // 0.75 SOL seeds LP
-const DEPLOY_PROTOCOL_PCT = 0.30;    // 0.45 SOL protocol
-const DEPLOY_BONUS_PCT    = 0.10;    // 0.15 SOL → airdrop pool
-const DEPLOY_INFRA_PCT    = 0.10;    // 0.15 SOL → LP seed
+// Deploy fee: 1.5 SOL
+const DEPLOY_LP_PCT       = 0.50;
+const DEPLOY_PROTOCOL_PCT = 0.30;
+const DEPLOY_BONUS_PCT    = 0.10;
+const DEPLOY_INFRA_PCT    = 0.10;
 const SOL_PRICE           = 180;
 const DAILY_LAUNCHES      = 50;
 
-// ── Airdrop only ───────────────────────────────────────────────
-// 100% of the 1.00% pool goes to airdrop eligible holders by balance.
-// Proportional to their % of supply relative to each other.
-// Snapshot each quarter. Hold rank = earn. Drop rank = stop.
-// No staking. No claiming. USDC lands automatically.
-
-// Assumed realistic top-15 distribution for projections
-
-
-function calcHourlyByRank(tokenDailyVol, rank) {
-  const pct = 0;
-  return 0;
-}
-
-
-function calcDailySOL(tokenDailyVol, holdingPct) {
-  return (tokenDailyVol * FEE_LP) * (holdingPct / 100);
-}
-
-function calcProtocolRevenue(dailyVol, launches) {
-  return (dailyVol * FEE_PROTOCOL) + (launches * 1.5 * DEPLOY_PROTOCOL_PCT * SOL_PRICE);
-}
-
-// Legacy compat
-const FEE_HOLDERS = FEE_AIRDROP;
-const TIERS = [
-  {id:"top15", label:"Airdrop", minPct:0.50, minUSD:500, share:1.0, col:"#ffd60a"},
-];
-const TIME_MULTS = [
-  {from:0, to:999, mult:1.0, label:"any"},
-];
-function getTier(holdingPct) { return holdingPct >= 0.5 ? TIERS[0] : null; }
-function getTimeMult() { return 1.0; }
-function holdingMultiplier(pct) { return pct; }
-function calcFeeDrip()    { return 0; }
-function calcWeeklyDrop() { return 0; }
-function calcUSDCHolder(volRaw, holdingPct) {
-  return 0 * 24 * 7;
-}
-
-// Platform scale
 const PLATFORM_DAILY_VOL  = 15_000_000;
 
-
-// Weekly airdrop claim modes
-const CLAIM_MODES = [
-  {v:"reinject", icon:"↺", label:"Reinject",    col:C.green, desc:"USDC swapped to token via Jupiter, auto-buys the chart. +10% bonus. Your bag locks 72hrs.", lock:"72hr freeze"},
-  {v:"token",    icon:"T", label:"Take tokens", col:"#ffd60a", desc:"Full amount vested over 7 days. Must maintain holding %.",    lock:"7 day vest"},
-  {v:"usdc",     icon:"$", label:"USDC",        col:"#0a84ff", desc:"15% haircut: 10% burned forever, 5% back to vault pool.",     lock:"48hr lock"},
-];
-
 const INIT_TOKENS = [];
-
 const HOLDERS = [];
-
 const MY_POSITIONS = [];
-
 const MY_TOKENS = [];
-
 const MOCK_NOTIFS = [];
-
 const MOCK_DEX = {};
 
 const fmt = n => n>=1e6?`$${(n/1e6).toFixed(1)}M`:n>=1e3?`$${(n/1e3).toFixed(0)}K`:`$${n}`;
@@ -318,9 +222,12 @@ function genCandles(count,base) {
   return d;
 }
 
+function calcProtocolRevenue(dailyVol, launches) {
+  return (dailyVol * FEE_PROTOCOL) + (launches * 1.5 * DEPLOY_PROTOCOL_PCT * SOL_PRICE);
+}
+
 // ===== DESIGN PRIMITIVES =====
 
-// ── Label — editorial typography ───────────────────────────────
 const Label = ({children, size=11, color, weight=400, mono=false, serif=false, style={}}) => (
   <span style={{
     fontSize:size,
@@ -334,7 +241,6 @@ const Label = ({children, size=11, color, weight=400, mono=false, serif=false, s
   }}>{children}</span>
 );
 
-// Spark line
 function Spark({data,color,W=56,H=20}) {
   if(!data||data.length<2) return null;
   const mn=Math.min(...data),mx=Math.max(...data),rng=mx-mn||1;
@@ -342,7 +248,6 @@ function Spark({data,color,W=56,H=20}) {
   return <svg width={W} height={H} style={{display:"block",overflow:"visible"}}><polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round"/></svg>;
 }
 
-// Token avatar — refined, subtle glow
 function Avatar({sym,pi,size=36}) {
   const p=PALETTES[pi%8];
   const r = Math.round(size * 0.26);
@@ -362,7 +267,6 @@ function Avatar({sym,pi,size=36}) {
   );
 }
 
-// Tag — refined pill
 function Tag({children,color,filled=false}) {
   return (
     <span style={{
@@ -382,7 +286,6 @@ function Tag({children,color,filled=false}) {
   );
 }
 
-// Button — refined, no rounded-pill defaults
 function Btn({children,onClick,variant="filled",color,full,small,disabled,loading}) {
   const h = small ? 32 : 42;
   const base = {
@@ -395,7 +298,7 @@ function Btn({children,onClick,variant="filled",color,full,small,disabled,loadin
     cursor:disabled||loading?"not-allowed":"pointer",
     transition:"opacity 0.12s, background 0.12s",
     letterSpacing:"0.01em",
-    textTransform:"uppercase" ,
+    textTransform:"uppercase",
     outline:"none", border:"none", whiteSpace:"nowrap",
     fontFamily:C.sans,
   };
@@ -417,7 +320,6 @@ function Btn({children,onClick,variant="filled",color,full,small,disabled,loadin
   );
 }
 
-// GlassCard — warm surface, hairline border
 function GlassCard({children,style={},onClick,hover=true}) {
   const [hov,setHov]=useState(false);
   return (
@@ -437,11 +339,8 @@ function GlassCard({children,style={},onClick,hover=true}) {
   );
 }
 
-// Separator — warm hairline
 const Sep = ({my=0}) => <div style={{height:"1px",background:C.border,margin:`${my}px 0`,opacity:0.8}}/>;
 
-
-// Topic verification chip
 function TopicChip({source,title}) {
   if(!source) return null;
   return (
@@ -458,20 +357,15 @@ function TopicChip({source,title}) {
 function CandleChart({candles,color,fullHeight}) {
   const ref      = useRef(null);
   const stateRef = useRef({
-    // view window: index of leftmost visible candle (float)
     offset: 0,
-    // how many candles visible (zoom level)
     visible: 60,
-    // drag state
     dragging: false,
     dragStartX: 0,
     dragStartOffset: 0,
-    // pinch state
     pinching: false,
     pinchStartDist: 0,
     pinchStartVisible: 0,
     pinchStartOffset: 0,
-    // pointer tracking
     pointers: {},
   });
   const [dims, setDims]   = useState({w:600, h:400});
@@ -479,7 +373,6 @@ function CandleChart({candles,color,fullHeight}) {
   const [,     forceRender] = useState(0);
   const redraw = () => forceRender(n => n+1);
 
-  // ResizeObserver
   useEffect(() => {
     if (!ref.current) return;
     const ro = new ResizeObserver(entries => {
@@ -492,7 +385,6 @@ function CandleChart({candles,color,fullHeight}) {
     return () => ro.disconnect();
   }, [fullHeight]);
 
-  // Clamp helpers
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const clampView = (s) => {
     const total = candles.length;
@@ -501,7 +393,6 @@ function CandleChart({candles,color,fullHeight}) {
     return s;
   };
 
-  // Derived layout
   const PAD_L = 56, PAD_R = 8, PAD_T = 12, PAD_B = fullHeight ? 24 : 20;
   const W = dims.w, H = dims.h;
   const chartW = W - PAD_L - PAD_R;
@@ -528,21 +419,17 @@ function CandleChart({candles,color,fullHeight}) {
     return {price: mn + frac * rng, y: py(mn + frac * rng)};
   });
 
-  // Pointer helpers
   const getPointers = () => Object.values(s.pointers);
 
   const onPointerDown = (e) => {
     e.currentTarget.setPointerCapture(e.pointerId);
     s.pointers[e.pointerId] = {x: e.clientX, y: e.clientY};
     const pts = getPointers();
-
     if (pts.length === 1) {
-      // single finger - start drag
       s.dragging = true;
       s.dragStartX = e.clientX;
       s.dragStartOffset = s.offset;
     } else if (pts.length === 2) {
-      // two fingers - start pinch
       s.dragging = false;
       s.pinching = true;
       const dx = pts[0].x - pts[1].x;
@@ -561,14 +448,11 @@ function CandleChart({candles,color,fullHeight}) {
     if (!r) return;
 
     if (pts.length >= 2) {
-      // PINCH ZOOM
       const [p0, p1] = pts;
       const dx = p0.x - p1.x, dy = p0.y - p1.y;
       const dist = Math.sqrt(dx*dx + dy*dy);
-      const scale = s.pinchStartDist / dist;           // >1 = zoom in
+      const scale = s.pinchStartDist / dist;
       const newVisible = clamp(s.pinchStartVisible * scale, 5, candles.length);
-
-      // keep midpoint candle stable
       const midX = ((p0.x + p1.x) / 2) - r.left - PAD_L;
       const midFrac = midX / chartW;
       const midCandle = s.pinchStartOffset + midFrac * s.pinchStartVisible;
@@ -576,21 +460,16 @@ function CandleChart({candles,color,fullHeight}) {
       s.offset  = clamp(midCandle - midFrac * newVisible, 0, candles.length - newVisible);
       clampView(s);
       redraw();
-
     } else if (s.dragging) {
-      // PAN
       const dx = e.clientX - s.dragStartX;
       const candlesDragged = (dx / chartW) * visCount;
       s.offset = clamp(s.dragStartOffset - candlesDragged, 0, candles.length - visCount);
       redraw();
-
-      // update hover
       const x = e.clientX - r.left - PAD_L;
       const i = Math.floor(x / cW);
       if (i >= 0 && i < vis.length) setHov({i, c: vis[i], x: PAD_L + i*cW + cW/2});
       else setHov(null);
     } else {
-      // hover only
       const x = e.clientX - r.left - PAD_L;
       const i = Math.floor(x / cW);
       if (i >= 0 && i < vis.length) setHov({i, c: vis[i], x: PAD_L + i*cW + cW/2});
@@ -605,7 +484,6 @@ function CandleChart({candles,color,fullHeight}) {
       s.dragging = false;
       s.pinching = false;
     } else if (pts.length === 1) {
-      // one finger left after pinch - restart drag from here
       s.dragging = true;
       s.dragStartX = pts[0].x;
       s.dragStartOffset = s.offset;
@@ -613,7 +491,6 @@ function CandleChart({candles,color,fullHeight}) {
     }
   };
 
-  // Scroll-wheel zoom (desktop)
   const onWheel = (e) => {
     e.preventDefault();
     const r = ref.current?.getBoundingClientRect();
@@ -635,7 +512,6 @@ function CandleChart({candles,color,fullHeight}) {
     return () => el.removeEventListener('wheel', onWheel);
   });
 
-  // Render
   return (
     <div ref={ref}
       style={{position:"relative", userSelect:"none", width:"100%", height: fullHeight?"100%":"180px", touchAction:"none", cursor: s.dragging?"grabbing":"crosshair"}}
@@ -646,22 +522,16 @@ function CandleChart({candles,color,fullHeight}) {
       onPointerLeave={e => { if (!s.pointers[e.pointerId]) setHov(null); }}
     >
       <svg width="100%" height="100%" style={{display:"block", overflow:"hidden"}}>
-
-        {/* Grid */}
         {ticks.map((tk, i) => (
           <line key={i} x1={PAD_L} x2={W-PAD_R} y1={tk.y} y2={tk.y}
             stroke="rgba(255,255,255,0.04)" strokeWidth="1"/>
         ))}
-
-        {/* Y-axis labels */}
         {ticks.map((tk, i) => (
           <text key={i} x={PAD_L-6} y={tk.y+4} textAnchor="end"
             fontSize="9" fill="rgba(255,255,255,0.22)" fontFamily="monospace">
             {tk.price.toFixed(7)}
           </text>
         ))}
-
-        {/* Candles */}
         {vis.map((c, i) => {
           const x   = PAD_L + i*cW + cW/2;
           const up  = c.c >= c.o;
@@ -685,8 +555,6 @@ function CandleChart({candles,color,fullHeight}) {
             </g>
           );
         })}
-
-        {/* Crosshair */}
         {hov && <>
           <line x1={hov.x} x2={hov.x} y1={PAD_T} y2={PAD_T+priceH}
             stroke="rgba(255,255,255,0.2)" strokeWidth="1" strokeDasharray="3,3"/>
@@ -699,20 +567,14 @@ function CandleChart({candles,color,fullHeight}) {
             {hov.c.c.toFixed(7)}
           </text>
         </>}
-
-        {/* VOL label */}
         <text x={PAD_L} y={PAD_T+priceH+14} fontSize="9"
           fill="rgba(255,255,255,0.18)" fontFamily="monospace">VOL</text>
-
-        {/* Candle count pill */}
         <rect x={W-PAD_R-52} y={PAD_T} width={50} height={16} fill="rgba(0,0,0,0.4)" rx="4"/>
         <text x={W-PAD_R-27} y={PAD_T+11} textAnchor="middle"
           fontSize="9" fill="rgba(255,255,255,0.3)" fontFamily="monospace">
           {visCount} candles
         </text>
       </svg>
-
-      {/* Hover tooltip */}
       {hov && (
         <div style={{
           position:"absolute", top: fullHeight?16:8,
@@ -738,7 +600,6 @@ function CandleChart({candles,color,fullHeight}) {
   );
 }
 
-
 // ===== AIRDROP GATE STATUS =====
 
 function AirdropGate({t}) {
@@ -747,8 +608,8 @@ function AirdropGate({t}) {
   useEffect(()=>{if(as.s!=="pending")return;const iv=setInterval(()=>setSecs(x=>Math.max(0,x-1)),1000);return()=>clearInterval(iv);},[as.s]);
   const cfg={
     locked:{color:C.red,bg:C.redBg,bd:C.redBd,label:"Bonding curve filling",sub:`${(t.raisedSOL||0).toFixed(1)} / 85 SOL raised -- rewards unlock at 85 SOL`},
-    pending:{color:C.gold,bg:C.goldBg,bd:C.goldBd,label:"Snapshot pending",sub:"Top holder snapshot locks in after anti-snipe delay — 5 min post-graduation, 1hr pre-grad"},
-    live:{color:C.green,bg:C.greenBg,bd:C.greenBd,label:"Rewards live — migrated to Raydium",sub:"Quarterly USDC to all holders + quarterly airdrop to all holders"},
+    pending:{color:C.gold,bg:C.goldBg,bd:C.goldBd,label:"Snapshot pending",sub:"Holder snapshot locks in after anti-snipe delay — 5 min post-graduation, 1hr pre-grad"},
+    live:{color:C.green,bg:C.greenBg,bd:C.greenBd,label:"Rewards live — migrated to Raydium",sub:"Quarterly USDC airdrop to all holders proportional by balance"},
   }[as.s];
 
   return (
@@ -787,244 +648,9 @@ function AirdropGate({t}) {
   );
 }
 
-// ===== WHITELIST STATUS — TOP 15 =====
-
-function WhitelistStatus({whitelisted, inTop10, mcap, volRaw, holdingPct=1.5}) {
-  const fired = MC_MILESTONES.filter(m => mcap >= m.mc);
-  const next  = MC_MILESTONES.find(m => mcap < m.mc);
-  const fmt   = n => n >= 1000 ? `$${(n/1000).toFixed(1)}K` : `$${n.toFixed(2)}`;
-  const fmtH  = n => n >= 100 ? `$${Math.round(n)}/hr` : `$${n.toFixed(2)}/hr`;
-
-  const hourlyUSDC = 0;
-  const weeklyUSDC = hourlyUSDC * 24 * 7;
-  
-  const rank       = 0;
-  
-
-  if (!whitelisted) return (
-    <GlassCard style={{padding:"16px", marginBottom:12}} hover={false}>
-      <Label size={13} color={C.textTer} weight={500}>Not in airdrop eligible</Label>
-      <div style={{marginTop:4}}>
-        <Label size={11} color={C.textQuat}>Hold more to crack airdrop eligible and earn 1% of every trade in USDC each quarter.</Label>
-      </div>
-    </GlassCard>
-  );
-
-  return (
-    <GlassCard style={{marginBottom:12, overflow:"hidden"}} hover={false}>
-      <div style={{padding:"16px 16px 14px", display:"flex", justifyContent:"space-between", alignItems:"center"}}>
-        <div style={{display:"flex", alignItems:"center", gap:8}}>
-          <div style={{width:8, height:8, borderRadius:"50%", background:C.gold, animation:"pulse 2s infinite"}}/>
-          <Label size={14} color={C.gold} weight={700}>Airdrop</Label>
-          {rank <= 15 && <Label size={12} color={C.textTer}>rank #{rank}</Label>}
-        </div>
-        <div style={{background:"rgba(255,214,10,0.1)", border:"1px solid rgba(255,214,10,0.3)", borderRadius:8, padding:"4px 10px"}}>
-          <Label size={11} color={C.gold} weight={600}>{"Earning points"}</Label>
-        </div>
-      </div>
-      <Sep/>
-      <div style={{padding:"14px 16px"}}>
-        <Label size={11} color={C.textTer} style={{display:"block", marginBottom:10, textTransform:"uppercase", letterSpacing:0.5}}>Your earnings at {holdingPct}% supply</Label>
-
-        {/* Hero hourly */}
-        <div style={{padding:"16px", background:"rgba(255,214,10,0.08)", border:"1px solid rgba(255,214,10,0.25)", borderRadius:12, marginBottom:8}}>
-          <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start"}}>
-            <div>
-              <Label size={12} color={C.gold} weight={700}>Quarterly USDC</Label>
-              <div style={{marginTop:3}}><Label size={10} color={C.textTer}>1% of all trades on this token → airdrop eligible</Label></div>
-              <div style={{marginTop:2}}><Label size={10} color={C.textTer}>proportional by holding % · auto each quarter</Label></div>
-            </div>
-            <div style={{textAlign:"right"}}>
-              <Label size={24} color={C.gold} weight={700} style={{display:"block"}}>{fmtH(hourlyUSDC)}</Label>
-              <Label size={11} color={C.textTer}>{fmt(hourlyUSDC*24)}/day</Label>
-            </div>
-          </div>
-        </div>
-
-        {/* Vault + weekly */}
-        <div style={{display:"flex", gap:8}}>
-          <div style={{flex:1, padding:"10px 12px", background:"rgba(255,159,10,0.06)", border:"1px solid rgba(255,159,10,0.2)", borderRadius:10}}>
-            <Label size={10} color={C.accent} style={{display:"block", marginBottom:3}}>Vault tokens/day</Label>
-            <Label size={15} color={C.accent} weight={700}>{"0.00"}</Label>
-          </div>
-          <div style={{flex:1, padding:"10px 12px", background:"rgba(255,214,10,0.06)", border:"1px solid rgba(255,214,10,0.2)", borderRadius:10}}>
-            <Label size={10} color={C.gold} style={{display:"block", marginBottom:3}}>Weekly USDC</Label>
-            <Label size={15} color={C.gold} weight={700}>{fmt(weeklyUSDC)}</Label>
-          </div>
-        </div>
-      </div>
-      <Sep/>
-      <div style={{padding:"10px 16px"}}>
-        <div style={{display:"flex", gap:2, height:3, borderRadius:99, overflow:"hidden", marginBottom:5}}>
-          {MC_MILESTONES.map((m,i) => (
-            <div key={i} style={{flex:1, background:mcap>=m.mc?C.gold:"rgba(255,255,255,0.08)", borderRadius:1, transition:"background 0.3s"}}/>
-          ))}
-        </div>
-        <div style={{display:"flex", justifyContent:"space-between"}}>
-          <Label size={10} color={C.textTer} mono>{fired.length}/{MC_MILESTONES.length} milestones</Label>
-          {next && <Label size={10} color={C.textTer}>Next: <span style={{color:C.text}}>{next.label}</span></Label>}
-        </div>
-      </div>
-    </GlassCard>
-  );
-}
-
-
-// ===== TOP 15 EARNINGS PANEL =====
-
-function CommunityEarnings({mcap, volRaw, holdingPct}) {
-  const fmt  = n => n >= 1000 ? `$${(n/1000).toFixed(1)}K` : `$${n.toFixed(2)}`;
-  const fmtH = n => n >= 100 ? `$${Math.round(n)}/hr` : n >= 1 ? `$${n.toFixed(2)}/hr` : `$${n.toFixed(3)}/hr`;
-  const hourlyPool = ((volRaw||0) * FEE_AIRDROP) / 24;
-  const myHourly   = 0;
-  
-
-  return (
-    <div style={{marginBottom:12}}>
-      {/* Hero pool size */}
-      <div style={{padding:"14px 16px", background:"rgba(255,214,10,0.06)", border:"1px solid rgba(255,214,10,0.25)", borderRadius:8, marginBottom:8}}>
-        <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}>
-          <div>
-            <Label size={12} color={C.gold} weight={700}>Quarterly Airdrop Pool</Label>
-            <Label size={11} color={C.textTer} style={{display:"block", marginTop:2}}>1% of every trade → 15 wallets · each quarter · automatic</Label>
-          </div>
-          <div style={{textAlign:"right"}}>
-            <Label size={22} color={C.gold} weight={700} style={{display:"block"}}>{fmtH(hourlyPool)}</Label>
-            <Label size={10} color={C.textTer}>{fmt(hourlyPool*24)}/day</Label>
-          </div>
-        </div>
-      </div>
-
-      {/* Airdrop leaderboard */}
-      <div style={{background:C.card, border:`1px solid ${C.border}`, borderRadius:8, overflow:"hidden", marginBottom:8}}>
-        <div style={{padding:"12px 16px 10px", display:"flex", justifyContent:"space-between"}}>
-          <Label size={12} color={C.text} weight={600}>Live earnings — airdrop eligible</Label>
-          <Label size={11} color={C.textTer}>at current volume</Label>
-        </div>
-        <div style={{borderTop:`1px solid ${C.border}`}}>
-        </div>
-      </div>
-
-      {/* Your position callout */}
-      {false ? (
-        <div style={{padding:"10px 14px", background:"rgba(255,59,48,0.06)", border:"1px solid rgba(255,59,48,0.2)", borderRadius:10}}>
-          <Label size={12} color={C.red} weight={600}>Not in airdrop eligible</Label>
-          <Label size={11} color={C.textTer} style={{display:"block", marginTop:2}}>
-          </Label>
-        </div>
-      ) : (
-        <div style={{padding:"10px 14px", background:"rgba(255,214,10,0.06)", border:"1px solid rgba(255,214,10,0.2)", borderRadius:10}}>
-          <div style={{display:"flex", justifyContent:"space-between"}}>
-            <Label size={12} color={C.gold} weight={600}>Your cut each quarter</Label>
-            <Label size={14} color={C.gold} weight={700}>{fmtH(myHourly)}</Label>
-          </div>
-          <Label size={11} color={C.textTer} style={{display:"block", marginTop:2}}>{fmt(myHourly*24)}/day · {fmt(myHourly*24*7)}/week · no action needed</Label>
-        </div>
-      )}
-    </div>
-  );
-}
-
-
-// ===== DRIP CONFIG =====
-
-function DripConfig({t}) {
-  const [mode,setMode]=useState("token");
-  const [freq,setFreq]=useState("4h");
-  const [lock,setLock]=useState(0);
-  const lb=LOCK_OPTIONS.find(o=>o.days===lock)?.boost||0;
-  const mil=MILESTONES[getMI(t.mcap)];
-
-  const MODES=[
-    {v:"token",   l:"Receive token",  sub:"Get paid in the coin you hold. Stack compounds.",         c:C.accent,  icon:"[token]"},
-    {v:"reinject",l:"Reinject (USDC→token)",       sub:"USDC swapped via Jupiter, auto-buys the chart. +10% bonus. Creates real buy pressure.",          c:C.green,   icon:"↺"},
-    {v:"usdc",    l:"USDC",           sub:"Take stable profit without selling your position.",        c:C.purple,  icon:"[usdc]"},
-  ];
-
-  return (
-    <div style={{display:"flex",flexDirection:"column",gap:12}}>
-      {/* Reward mode */}
-      <GlassCard hover={false}>
-        <div style={{padding:"14px 16px 12px"}}>
-          <Label size={13} color={C.text} weight={600}>Payout mode</Label>
-          <div style={{marginTop:2}}><Label size={11} color={C.textTer}>How your daily drip is paid -- snapshot every 24hrs</Label></div>
-        </div>
-        <Sep/>
-        <div style={{padding:"12px",display:"flex",flexDirection:"column",gap:8}}>
-          {MODES.map(opt=>(
-            <button key={opt.v} onClick={()=>setMode(opt.v)} style={{width:"100%",padding:"12px 14px",borderRadius:11,border:`1.5px solid ${mode===opt.v?opt.c+"66":C.border}`,background:mode===opt.v?`${opt.c}12`:"transparent",cursor:"pointer",textAlign:"left",transition:"all 0.15s",display:"flex",alignItems:"center",gap:12}}>
-              <div style={{width:28,height:28,borderRadius:8,background:"rgba(255,255,255,0.06)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Label size={11} color={opt.c} weight={700}>{opt.v==="token"?"T":opt.v==="reinject"?"R":"$"}</Label></div>
-              <div style={{flex:1}}>
-                <Label size={13} color={mode===opt.v?opt.c:C.textSec} weight={600}>{opt.l}</Label>
-                <div style={{marginTop:2}}><Label size={10} color={C.textTer}>{opt.sub}</Label></div>
-              </div>
-              {mode===opt.v&&<div style={{width:8,height:8,borderRadius:"50%",background:opt.c,flexShrink:0}}/>}
-            </button>
-          ))}
-        </div>
-        {mode==="usdc"&&<div style={{margin:"0 12px 12px",padding:"10px 12px",background:C.purpleBg,border:`1px solid ${C.purpleBd}`,borderRadius:10}}><Label size={11} color={C.purple}>15% haircut: 10% burned forever, 5% back to weekly pool. 48hr lock. Reduces token supply permanently.</Label></div>}
-        {mode==="reinject"&&<div style={{margin:"0 12px 12px",padding:"10px 12px",background:C.greenBg,border:`1px solid ${C.greenBd}`,borderRadius:10}}><Label size={11} color={C.green}>Your USDC drip is swapped to {t.sym} via Jupiter — real market buy, pushes the chart. +10% bonus on top. Your bag locks 72hrs.</Label></div>}
-        {mode==="token"&&<div style={{margin:"0 12px 12px",padding:"10px 12px",background:C.accentBg,border:`1px solid ${C.accentBd}`,borderRadius:10}}><Label size={11} color={C.accent}>You receive {t.sym} tokens directly. Your % of supply increases every day you stay in top 10.</Label></div>}
-      </GlassCard>
-
-      {/* Claim rules info */}
-      <GlassCard hover={false}>
-        <div style={{padding:"14px 16px 12px"}}>
-          <Label size={13} color={C.text} weight={600}>Claim rules</Label>
-          <div style={{marginTop:2}}><Label size={11} color={C.textTer}>Weekly snapshot every 7 days -- must hold top 10 all week</Label></div>
-        </div>
-        <Sep/>
-        <div style={{padding:"12px",display:"flex",flexDirection:"column",gap:6}}>
-          {CLAIM_MODES.map(o=>(
-            <div key={o.v} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderRadius:10,background:"rgba(255,255,255,0.03)",border:`1px solid ${C.border}`}}>
-              <div style={{width:24,height:24,borderRadius:7,background:`${o.col}18`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                <Label size={10} color={o.col} weight={700}>{o.icon}</Label>
-              </div>
-              <div style={{flex:1}}>
-                <Label size={12} color={C.text} weight={600}>{o.label}</Label>
-                <div style={{marginTop:2}}><Label size={10} color={C.textTer}>{o.desc}</Label></div>
-              </div>
-              <div style={{padding:"2px 8px",borderRadius:20,background:`${o.col}18`,border:`1px solid ${o.col}33`}}>
-                <Label size={9} color={o.col} weight={600}>{o.lock}</Label>
-              </div>
-            </div>
-          ))}
-        </div>
-      </GlassCard>
-
-      {/* Lockup */}
-      <GlassCard hover={false}>
-        <div style={{padding:"14px 16px 12px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div>
-            <Label size={13} color={C.text} weight={600}>Lockup boost</Label>
-            <div style={{marginTop:2}}><Label size={11} color={C.textTer}>Lock longer to earn more</Label></div>
-          </div>
-          {lock>0&&<Label size={13} color={C.accent} weight={600}>+{(lb*100).toFixed(0)}%</Label>}
-        </div>
-        <Sep/>
-        <div style={{padding:"12px",display:"flex",gap:6}}>
-          {LOCK_OPTIONS.map(o=>(
-            <button key={o.days} onClick={()=>setLock(o.days)} style={{flex:1,padding:"10px 4px",borderRadius:10,border:`1px solid ${lock===o.days?C.accent+"55":C.border}`,background:lock===o.days?C.accentBg:"transparent",cursor:"pointer",textAlign:"center",transition:"all 0.15s"}}>
-              <Label size={12} color={lock===o.days?C.accent:C.textSec} weight={600}>{o.label}</Label>
-              {o.boost>0&&<div style={{marginTop:2}}><Label size={9} color={C.textTer}>+{(o.boost*100).toFixed(0)}%</Label></div>}
-            </button>
-          ))}
-        </div>
-      </GlassCard>
-
-      {/* Summary */}
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 16px",background:C.card,borderRadius:8,border:`1px solid ${C.border}`}}>
-        <Label size={13} color={C.textSec}>Your effective multiplier</Label>
-        <Label size={22} color={C.accent} weight={700}>{(mil.multi+lb).toFixed(2)}x</Label>
-      </div>
-    </div>
-  );
-}
-
 // ===== SWAP PANEL =====
 
-// Mirrors the on-chain max_tokens_for_window from curve.rs exactly
-const BONDING_SUPPLY_UI = 650_000_000; // 650M tokens (display units, no decimals)
+const BONDING_SUPPLY_UI = 650_000_000;
 function getLaunchCap(elapsedMins) {
   if(elapsedMins<7)  return {bps:150, pct:"1.5%", label:"0–7 min",  col:"#f43f5e", next:7};
   if(elapsedMins<14) return {bps:200, pct:"2%",   label:"7–14 min", col:"#fb923c", next:14};
@@ -1032,92 +658,23 @@ function getLaunchCap(elapsedMins) {
   return               {bps:10000,pct:"Open",label:"30 min+",  col:"#22c55e", next:null};
 }
 function capTokens(bps) { return Math.floor(BONDING_SUPPLY_UI * bps / 10000); }
-// Very rough: how much SOL buys X tokens at current point on curve (linear approx for UI)
 function tokensToSolApprox(tokens, mcap) { return (tokens/BONDING_SUPPLY_UI) * (mcap/180) * 0.55; }
 
 function CapBar({elapsedMins, myHolding, tokensOut, graduated}) {
   if(graduated) return null;
   return null; // disabled
-  const cw = getLaunchCap(elapsedMins);
-  if(cw.bps===10000) return (
-    <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:"rgba(34,197,94,0.06)",border:"1px solid rgba(34,197,94,0.15)",borderRadius:8,marginBottom:10}}>
-      <div style={{width:6,height:6,borderRadius:"50%",background:C.green,flexShrink:0}}/>
-      <Label size={11} color={C.green}>Launch caps lifted — open trading</Label>
-    </div>
-  );
-
-  const maxTok    = capTokens(cw.bps);
-  const afterBuy  = myHolding + (tokensOut||0);
-  const remaining = Math.max(0, maxTok - myHolding);
-  const wouldExceed = tokensOut>0 && afterBuy > maxTok;
-  const usedPct   = Math.min(100, (myHolding/maxTok)*100);
-  const willUsePct= Math.min(100, (afterBuy/maxTok)*100);
-  const minsLeft  = cw.next ? cw.next - elapsedMins : 0;
-
-  return (
-    <div style={{background:wouldExceed?"rgba(244,63,94,0.06)":"rgba(255,255,255,0.03)",border:`1px solid ${wouldExceed?C.redBd:C.border}`,borderRadius:10,padding:"11px 14px",marginBottom:10}}>
-      {/* Header row */}
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:7}}>
-        <div style={{display:"flex",alignItems:"center",gap:6}}>
-          <div style={{width:5,height:5,borderRadius:"50%",background:cw.col,flexShrink:0}}/>
-          <Label size={11} color={cw.col} weight={600}>Launch cap — {cw.pct} window</Label>
-          <Label size={10} color={C.textTer}>({cw.label})</Label>
-        </div>
-        {minsLeft>0&&<Label size={10} color={C.textTer} mono>opens in {minsLeft}m</Label>}
-      </div>
-
-      {/* Progress bar */}
-      <div style={{height:5,background:"rgba(255,255,255,0.06)",borderRadius:99,overflow:"hidden",marginBottom:7,position:"relative"}}>
-        {/* current holding */}
-        <div style={{position:"absolute",left:0,top:0,height:"100%",width:`${usedPct}%`,background:cw.col,opacity:0.6,borderRadius:99,transition:"width 0.4s ease"}}/>
-        {/* this buy on top */}
-        {tokensOut>0&&<div style={{position:"absolute",left:0,top:0,height:"100%",width:`${Math.min(100,willUsePct)}%`,background:wouldExceed?C.red:cw.col,borderRadius:99,transition:"width 0.3s ease"}}/>}
-      </div>
-
-      {/* Stats */}
-      <div style={{display:"flex",justifyContent:"space-between"}}>
-        <div>
-          <Label size={10} color={C.textTer} style={{display:"block",marginBottom:1}}>You hold</Label>
-          <Label size={12} color={C.text} weight={500} mono>{myHolding.toLocaleString()} / {maxTok.toLocaleString()}</Label>
-        </div>
-        <div style={{textAlign:"right"}}>
-          <Label size={10} color={C.textTer} style={{display:"block",marginBottom:1}}>Remaining cap</Label>
-          <Label size={12} color={remaining===0?C.red:C.green} weight={600} mono>
-            {remaining.toLocaleString()} tokens
-          </Label>
-        </div>
-      </div>
-
-      {/* Exceed warning */}
-      {wouldExceed&&(
-        <div style={{marginTop:8,padding:"7px 10px",background:C.redBg,border:`1px solid ${C.redBd}`,borderRadius:7}}>
-          <Label size={11} color={C.red} weight={600}>
-            🚫 Exceeds cap by {(afterBuy-maxTok).toLocaleString()} tokens — on-chain buy will fail
-          </Label>
-          <Label size={11} color={C.textTer} style={{display:"block",marginTop:2}}>
-            Max you can buy right now: ~{tokensToSolApprox(remaining,t?.mcap||0).toFixed(3)} SOL worth
-          </Label>
-        </div>
-      )}
-    </div>
-  );
 }
 
 function SwapPanel({t,connected,onConnect}) {
   const [tab,setTab]=useState("buy");
   const [amt,setAmt]=useState("");
-  const [lock,setLock]=useState(0);
-  const [showLock,setShowLock]=useState(false);
-  const [done,setDone]=useState(false);
   const [loading,setLoading]=useState(false);
+  const [done,setDone]=useState(false);
   const sol=parseFloat(amt)||0;
   const impact=sol>0?calcImpact(t.mcap,sol,tab==="buy"):null;
   const cw=getLaunchCap(t.elapsed||0);
-  const lb=LOCK_OPTIONS.find(o=>o.days===lock)?.boost||0;
 
-  // Simulated: how many tokens this buy would give (rough, for cap bar)
   const tokensOut = tab==="buy"&&sol>0 ? Math.floor(sol*180/t.mcap*BONDING_SUPPLY_UI*0.55) : 0;
-  // Simulated: current holding (0 for demo — in prod this comes from wallet ATA)
   const myHolding = 0;
   const capTokensMax = capTokens(cw.bps);
   const wouldExceed = tab==="buy" && !t.graduated && cw.bps<10000 && (myHolding+tokensOut)>capTokensMax;
@@ -1177,15 +734,11 @@ function SwapPanel({t,connected,onConnect}) {
         </div>
       )}
 
-      {/* Web-only notice */}
-      {!t.graduated&&(
-        <div style={{display:"flex",alignItems:"flex-start",gap:8,padding:"10px 12px",background:C.purpleBg,border:`1px solid ${C.purpleBd}`,borderRadius:10,marginBottom:10}}>
-          <div style={{width:5,height:5,borderRadius:"50%",background:C.purple,flexShrink:0,marginTop:4}}/>
-          <Label size={11} color={C.purple}>Web-only swap. Jupiter and Jito bundles are blocked during the bonding curve phase.</Label>
-        </div>
-      )}
-
-      )}
+      {/* Quarterly airdrop info — replaces old "web-only swap" notice */}
+      <div style={{display:"flex",alignItems:"flex-start",gap:8,padding:"10px 12px",background:C.goldBg,border:`1px solid ${C.goldBd}`,borderRadius:10,marginBottom:10}}>
+        <div style={{width:5,height:5,borderRadius:"50%",background:C.gold,flexShrink:0,marginTop:4}}/>
+        <Label size={11} color={C.gold}>0.50% of every trade goes to the quarterly USDC airdrop pool. All holders earn proportionally by balance — no staking, no claiming, automatic each quarter.</Label>
+      </div>
 
       <Btn onClick={()=>{if(!connected){onConnect();return;}if(wouldExceed)return;setLoading(true);(async()=>{try{const provider=window?.solana;const mintStr=t.mint||t.mintAddress;if(!mintStr){alert("No mint address — token not yet on-chain");setLoading(false);return;}const mintPk=new (await import('@solana/web3.js')).PublicKey(mintStr);const tx=await buildSwapTx(provider.publicKey,mintPk,parseFloat(amt),tab==="buy");tx.feePayer=provider.publicKey;const {blockhash}=await connection.getLatestBlockhash();tx.recentBlockhash=blockhash;const signed=await provider.signTransaction(tx);const sig=await connection.sendRawTransaction(signed.serialize());await connection.confirmTransaction(sig);setDone(true);}catch(e){console.error(e);alert(e.message);}finally{setLoading(false);}})();}} full color={tab==="buy"?C.green:C.red} loading={loading} disabled={!amt||wouldExceed}>
         {!connected?"Connect wallet":wouldExceed?"Exceeds launch cap":`${tab==="buy"?"Buy":"Sell"}${amt?` ${amt} ${tab==="buy"?"SOL":"tokens"}`:""}`}
@@ -1204,7 +757,6 @@ function Card({t,onClick,rank}) {
     <GlassCard onClick={()=>onClick(t)} style={{padding:"18px 20px"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
         <div style={{display:"flex",alignItems:"center",gap:11}}>
-          {/* Rank number */}
           <div style={{width:22,flexShrink:0,textAlign:"center"}}>
             <Label size={rank<=3?15:13} color={rankColor} weight={700} mono>{rank}</Label>
           </div>
@@ -1219,24 +771,11 @@ function Card({t,onClick,rank}) {
           <div style={{marginTop:3}}><Label size={13} color={up?C.green:C.red} weight={500}>{up?"+":""}{t.chg.toFixed(1)}%</Label></div>
         </div>
       </div>
-
       <div style={{marginBottom:10,display:"flex",justifyContent:"flex-end"}}>
         <Spark data={spark} color={up?C.green:C.red}/>
       </div>
-
       <Label size={12} color={C.textTer} style={{display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginBottom:t.topicLocked?0:10}}>{t.desc}</Label>
-
       {t.topicLocked&&<TopicChip source={t.topicSource} title={t.topicTitle}/>}
-
-      {(t.volRaw||0)>0&&(
-        <div style={{marginTop:10,display:"flex",alignItems:"center",gap:6,padding:"6px 10px",
-          background:"rgba(10,132,255,0.06)",border:`1px solid rgba(10,132,255,0.2)`,borderRadius:9}}>
-          <div style={{width:5,height:5,borderRadius:"50%",background:C.blue,flexShrink:0}}/>
-          <Label size={11} color={C.blue} weight={600}>
-            {"0.3% holder ~$"+((0).toFixed(2))+"/hr USDC"}
-          </Label>
-        </div>
-      )}
       <div style={{display:"flex",gap:5,marginTop:8,flexWrap:"wrap",alignItems:"center"}}>
         <Tag color={p.a}>{t.vol}</Tag>
         <Tag color={C.textTer}>{t.holders.toLocaleString()} holders</Tag>
@@ -1246,8 +785,6 @@ function Card({t,onClick,rank}) {
         {t.bondingFull&&!t.graduated&&<Tag color={C.accent}>Bonded</Tag>}
         {(t.raisedSOL||0)>=60&&!t.bondingFull&&<Tag color={C.purple}>Near grad</Tag>}
       </div>
-
-      {/* Bonding bar for non-graduated tokens */}
       {!t.graduated&&(
         <div style={{marginTop:12}}>
           <div style={{height:2,background:"rgba(255,255,255,0.06)",borderRadius:99,overflow:"hidden"}}>
@@ -1347,7 +884,6 @@ function TokenPage({t,onClose,connected,onConnect}) {
           {t.topicLocked&&<div style={{background:C.tealBg,border:`1px solid ${C.tealBd}`,borderRadius:6,padding:"2px 8px"}}><Label size={10} color={C.teal}>{t.topicSource} -- {t.topicTitle?.slice(0,36)}</Label></div>}
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
-          {/* Social links */}
           {t.tw&&(
             <a href={`https://x.com/${t.tw}`} target="_blank" rel="noopener noreferrer"
               style={{width:28,height:28,borderRadius:8,background:"rgba(255,255,255,0.06)",border:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"center",textDecoration:"none",transition:"background 0.12s"}}
@@ -1385,8 +921,6 @@ function TokenPage({t,onClose,connected,onConnect}) {
 
         {/* LEFT - CHART COLUMN */}
         <div className="tp-chart">
-
-          {/* Chart header */}
           <div style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:`1px solid ${C.border}`,flexShrink:0}}>
             <div>
               <Label size={26} color={C.text} weight={700}>{t.pricePerToken ? (t.pricePerToken*180).toFixed(8) : "0.00000000"}</Label>
@@ -1400,15 +934,11 @@ function TokenPage({t,onClose,connected,onConnect}) {
               ))}
             </div>
           </div>
-
-          {/* Big chart - fills all remaining height */}
           <div style={{flex:1,minHeight:0,position:"relative",padding:"0"}}>
             <div style={{position:"absolute",inset:0,padding:"8px 4px 0"}}>
               <CandleChart candles={candles} color={p.a} fullHeight/>
             </div>
           </div>
-
-          {/* Chart footer stats */}
           <div style={{borderTop:`1px solid ${C.border}`,padding:"10px 16px",display:"flex",gap:0,flexShrink:0,background:"rgba(0,0,0,0.4)"}}>
             {[["Volume",t.vol],["Txns",t.txs.toLocaleString()],["Holders",t.holders.toLocaleString()],["Multiplier",`${mil.multi}x`],["Age",`${t.age}d`],["Raised",`${t.raisedSOL||0}/${t.raisedSOLMax||85} SOL`]].map((s,i,a)=>(
               <div key={s[0]} style={{flex:1,paddingRight:i<a.length-1?12:0,borderRight:i<a.length-1?`1px solid ${C.border}`:"none",paddingLeft:i>0?12:0}}>
@@ -1417,8 +947,6 @@ function TokenPage({t,onClose,connected,onConnect}) {
               </div>
             ))}
           </div>
-
-          {/* Bonding bar */}
           <div style={{padding:"10px 16px",borderTop:`1px solid ${C.border}`,flexShrink:0,background:"rgba(0,0,0,0.3)"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
               <Label size={11} color={C.textTer}>Bonding curve</Label>
@@ -1435,8 +963,6 @@ function TokenPage({t,onClose,connected,onConnect}) {
 
         {/* RIGHT - SIDEBAR */}
         <div className="tp-sidebar">
-
-          {/* Position card - always visible at top */}
           {myPos&&(
             <div style={{padding:"12px 14px",borderBottom:`1px solid ${C.border}`,background:myPos.pnlPct>=0?"rgba(48,209,88,0.05)":"rgba(255,69,58,0.05)",flexShrink:0}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
@@ -1449,15 +975,9 @@ function TokenPage({t,onClose,connected,onConnect}) {
                   <div><Label size={10} color={C.textTer}>P&L</Label></div>
                 </div>
               </div>
-              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                {myPos.whitelisted&&<Tag color={C.green}>Whitelisted</Tag>}
-                {myPos.inTop10&&<Tag color={C.accent}>Top 10</Tag>}
-                {myPos.pendingDrip>0&&as.s==="live"&&<Tag color={C.gold}>{myPos.pendingDrip} SOL drip pending</Tag>}
-              </div>
             </div>
           )}
 
-          {/* Airdrop gate - always visible if relevant */}
           {t.bondingFull&&(
             <div style={{padding:"8px 14px",borderBottom:`1px solid ${C.border}`,flexShrink:0,background:"rgba(255,214,10,0.04)"}}>
               <AirdropGate t={t}/>
@@ -1480,74 +1000,41 @@ function TokenPage({t,onClose,connected,onConnect}) {
 
           {/* Right tab content - scrollable */}
           <div style={{flex:1,overflowY:"auto",padding:"14px"}}>
-
-            {/* SWAP */}
             {rightTab==="swap"&&(
               <div style={{animation:"fadeUp 0.15s ease"}}>
                 <SwapPanel t={t} connected={connected} onConnect={onConnect}/>
-                </div>
-            )}
-
-            {/* DRIP */}
-            {rightTab==="drip"&&(
-              <div style={{animation:"fadeUp 0.15s ease"}}>
-                <CommunityEarnings mcap={t.mcap} volRaw={t.volRaw} holdingPct={myPos?((myPos.held/1e9)*100):0.08}/>
-                <WhitelistStatus whitelisted={myPos?.whitelisted||false} inTop10={myPos?.inTop10||false} mcap={t.mcap} volRaw={t.volRaw} holdingPct={myPos?((myPos.held/1e9)*100):1.5}/>
-                <DripConfig t={t}/>
-                {as.s==="live"&&(
-                  <div style={{marginTop:12,padding:"12px 14px",background:C.card,borderRadius:8,border:`1px solid ${C.border}`}}>
-                    <Label size={10} color={C.textTer} style={{display:"block",marginBottom:10,letterSpacing:0.4,textTransform:"uppercase"}}>Flywheel</Label>
-                    <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-                      {["Hold any token","Earn USDC each quarter","Bigger bag = more per hour","Top 10 get vault tokens","Chart stays clean","Repeat"].map((s,i,a)=>(
-                        <div key={s} style={{display:"flex",alignItems:"center",gap:5}}>
-                          <div style={{padding:"4px 9px",borderRadius:20,background:C.accentBg,border:`1px solid ${C.accentBd}`}}>
-                            <Label size={10} color={C.accent} weight={500}>{s}</Label>
-                          </div>
-                          {i<a.length-1&&<svg width="7" height="7" viewBox="0 0 8 8" style={{flexShrink:0,opacity:0.2}}><path d="M1 4h6M4 1l3 3-3 3" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             )}
 
-            {/* HOLDERS */}
             {rightTab==="holders"&&(
               <div style={{animation:"fadeUp 0.15s ease"}}>
                 <div style={{marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                  <Label size={14} color={C.text} weight={600}>Top 10 Holders</Label>
-                  {as.s==="live"?<><Label size={12} color={C.accent} weight={500}>{mil.multi}x </Label><Label size={11} color={C.textTer}>drip active</Label></>
-                  :as.s==="pending"?<Label size={11} color={C.gold}>Snapshot in {as.minsLeft}m</Label>
-                  :<Label size={11} color={C.red}>Unlocks at $500K</Label>}
+                  <Label size={14} color={C.text} weight={600}>Top Holders</Label>
+                  {as.s==="live"&&<Label size={11} color={C.green}>Airdrop active</Label>}
+                  {as.s==="pending"&&<Label size={11} color={C.gold}>Snapshot in {as.minsLeft}m</Label>}
                 </div>
                 <GlassCard style={{overflow:"hidden",padding:0}} hover={false}>
+                  {HOLDERS.length === 0 && (
+                    <div style={{padding:"32px 16px",textAlign:"center"}}>
+                      <Label size={13} color={C.textQuat}>No holder data yet</Label>
+                    </div>
+                  )}
                   {HOLDERS.map((h,i)=>(
                     <div key={h.rank} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",borderBottom:i<19?`1px solid ${C.border}`:"none",background:h.rank<=3?"rgba(255,159,10,0.03)":"transparent"}}>
                       <div style={{width:24,height:24,borderRadius:7,background:h.rank===1?`linear-gradient(135deg,${C.gold},#e6960a)`:C.sheet,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                         <Label size={10} color={h.rank===1?"#000":C.textTer} weight={700}>{h.rank}</Label>
                       </div>
                       <div style={{flex:1,minWidth:0}}>
-                        <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:2}}>
-                          <Label size={11} color={C.textSec} mono>{h.wallet}</Label>
-                          {h.whitelisted&&<div style={{width:4,height:4,borderRadius:"50%",background:C.green,flexShrink:0}}/>}
-                        </div>
-                        <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
-                          {h.lockDays>0&&<Tag color={C.accent}>{h.lockDays}d</Tag>}
-                          {h.streak&&<Tag color={C.green}>streak</Tag>}
-                          <Tag color={h.dripMode==="reinject"?C.accent:C.purple}>{h.dripMode==="reinject"?"↺ reinject":"USDC"}</Tag>
-                        </div>
+                        <Label size={11} color={C.textSec} mono>{h.wallet}</Label>
                       </div>
                       <div style={{textAlign:"right",flexShrink:0}}>
                         <Label size={13} color={C.text} weight={600}>{h.pct}%</Label>
-                        <div><Label size={9} color={C.textTer} mono>{(mil.multi+h.boost).toFixed(2)}x</Label></div>
                       </div>
                     </div>
                   ))}
                 </GlassCard>
               </div>
             )}
-
           </div>
         </div>
       </div>
@@ -1563,77 +1050,41 @@ function LaunchModal({onClose,slotData}) {
   const [topicRes,setTopicRes]=useState(null);
   const [classifying,setClassifying]=useState(false);
 
-  // Extracts the core identity from any input:
-  // "@elonmusk" -> "elonmusk"
-  // "https://x.com/elonmusk/status/123" -> "elonmusk"
-  // "https://elonmusk.com/anything" -> "elonmusk"
-  // "elonmusk.xyz" -> "elonmusk"
   function extractIdentity(raw) {
     if(!raw||raw.trim().length<2) return null;
     const s = raw.trim().toLowerCase();
-    // @handle -> strip @
     if(s.startsWith("@")) return s.slice(1).split("/")[0].replace(/[^a-z0-9_]/g,"");
-    // x.com/handle or twitter.com/handle URL
     const xMatch = s.match(/(?:x\.com|twitter\.com)\/([a-z0-9_]+)/);
     if(xMatch) return xMatch[1];
-    // Any URL -> strip protocol, www, extract first path segment or subdomain
     try {
       const url = s.startsWith("http") ? s : "https://"+s;
       const u = new URL(url);
       const host = u.hostname.replace(/^www\./,"");
-      // subdomain.tld -> take subdomain if not generic
       const parts = host.split(".");
       const name = parts.length>=2 ? parts[0] : host;
-      // strip tld noise - return the meaningful name
       return name.replace(/[^a-z0-9_]/g,"");
     } catch(e) {
       return s.replace(/[^a-z0-9_]/g,"");
     }
   }
 
-  // == PVP LOCK ENGINE ==
-  // Three lock types - all permanent while token is above $50K market cap:
-  //
-  // 1. TICKER LOCK  - $PUNCH locks PUNCH, PUNCHY, PUNCH2, XPUNCH (all derivatives)
-  // 2. IMAGE LOCK   - perceptual hash comparison, blocks same/similar images
-  // 3. IDENTITY LOCK - @handle / domain / tweet URL all extract to same identity
-  //
-  // Lock rules:
-  //   - Token must be above $50K market cap to hold a lock
-  //   - Below $50K = fair game, anyone can outcompete it
-  //   - Above $50K = ticker, image, and identity are all frozen
-  //   - Identity lock also has 24hr cooldown for new unlocks (on top of mc rule)
-  // -------------------------------------------------------------------------
+  const DEPLOYED_TOKENS = [];
+  const MC_LOCK_THRESHOLD = 50000;
+  const LOCK_TTL = 24*60*60*1000;
 
-  // Simulated on-chain registry - populated at deploy time
-  // Each entry: {ticker, imageHash, identity, marketCap, lockedAt}
-  const DEPLOYED_TOKENS = [
-    
-    
-    
-    
-  ];
-
-  const MC_LOCK_THRESHOLD = 50000; // $50K - tokens above this hold all locks
-  const LOCK_TTL = 24*60*60*1000;  // 24hr identity cooldown
-
-  // Normalise ticker: strip $, uppercase, trim
   function normaliseTicker(raw) {
     if(!raw||!raw.trim()) return null;
     return raw.trim().toUpperCase().replace(/^\$/, "").replace(/[^A-Z0-9]/g, "");
   }
 
-  // Ticker similarity - block exact match + close derivatives
-  // "PUNCH" blocks "PUNCH", "PUNCHX", "XPUNCH", "PUNCH2", "PUNCHY", "PNCH" etc
   function tickerBlocked(inputTicker) {
     if(!inputTicker||inputTicker.length<2) return null;
     const t = inputTicker;
     const match = DEPLOYED_TOKENS.find(tok => {
-      if(tok.marketCap < MC_LOCK_THRESHOLD) return false; // below $50K = not locked
+      if(tok.marketCap < MC_LOCK_THRESHOLD) return false;
       const existing = tok.ticker;
-      if(t === existing) return true;                      // exact match
-      if(t.includes(existing) || existing.includes(t)) return true; // substring
-      // Levenshtein distance <= 1 for tickers <= 6 chars (catches typo derivatives)
+      if(t === existing) return true;
+      if(t.includes(existing) || existing.includes(t)) return true;
       if(t.length <= 6 && existing.length <= 6) {
         let dist = 0, a = t, b = existing;
         if(a.length !== b.length) dist++;
@@ -1646,11 +1097,8 @@ function LaunchModal({onClose,slotData}) {
     return {ticker: match.ticker, marketCap: match.marketCap};
   }
 
-  // Image lock - perceptual hash check (simulated)
-  // In production: dhash/phash comparison server-side at upload
   function imageBlocked(imageFile) {
     if(!imageFile) return null;
-    // Simulate: if filename contains a known locked hash keyword, block it
     const name = (imageFile.name||"").toLowerCase();
     const match = DEPLOYED_TOKENS.find(tok => {
       if(tok.marketCap < MC_LOCK_THRESHOLD) return false;
@@ -1661,7 +1109,6 @@ function LaunchModal({onClose,slotData}) {
     return {ticker: match.ticker, marketCap: match.marketCap};
   }
 
-  // Identity lock - 24hr cooldown + $50K mc protection
   function isClaimed(identity) {
     if(!identity||identity.length<2) return null;
     const match = DEPLOYED_TOKENS.find(tok => {
@@ -1669,7 +1116,6 @@ function LaunchModal({onClose,slotData}) {
       return identity.includes(tok.identity)||tok.identity.includes(identity);
     });
     if(!match) return null;
-    // Also check 24hr cooldown on top of mc rule
     const expired = (Date.now()-match.lockedAt) > LOCK_TTL;
     if(expired && match.marketCap < MC_LOCK_THRESHOLD) return null;
     const minsLeft = Math.ceil((LOCK_TTL-(Date.now()-match.lockedAt))/60000);
@@ -1687,10 +1133,8 @@ function LaunchModal({onClose,slotData}) {
   const imageBlock   = imageBlocked(form.imageFile);
   const twitterClaim = isClaimed(twitterIdentity);
   const websiteClaim = isClaimed(websiteIdentity);
-  const topicIdentity = topicRes ? extractIdentity(form.topicUrl) : null;
 
   const ready = form.name.trim() && form.sym.trim();
-  // Identity lock ONLY activates when a Twitter or website link is provided
   const hasIdentityLink = !!(form.twitter.trim().length > 1 || form.website.trim().length > 4);
   const pvpProtected = hasIdentityLink && !twitterClaim && !websiteClaim;
   const topicBlocked = (topicRes&&topicRes.claimed) || !!twitterClaim || !!websiteClaim;
@@ -1709,12 +1153,13 @@ function LaunchModal({onClose,slotData}) {
       <div style={{background:C.sheet,borderRadius:10,padding:"28px 24px",textAlign:"center",maxWidth:320,width:"92%",border:`1px solid ${C.border}`,boxShadow:"0 40px 80px rgba(0,0,0,0.6)",animation:"scaleIn 0.22s ease"}} onClick={e=>e.stopPropagation()}>
         <div style={{width:56,height:56,borderRadius:8,background:C.accentBg,border:`1px solid ${C.accentBd}`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px"}}><svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M4 11L9 16L18 6" stroke={C.accent} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg></div>
         <Label size={20} color={C.text} weight={700} style={{display:"block",marginBottom:8}}>Token is live</Label>
-        <Label size={13} color={C.textSec} style={{display:"block",lineHeight:1.7,marginBottom:16}}>Hit $500K market cap to open rewards. Once bonded, LP migrates to Raydium and all fees compound forever.</Label>
+        <Label size={13} color={C.textSec} style={{display:"block",lineHeight:1.7,marginBottom:16}}>All holders earn from the quarterly USDC airdrop — proportional by balance, automatic each quarter.</Label>
         <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 12px",marginBottom:16,textAlign:"left"}}>
           <Label size={11} color={C.textTer} style={{display:"block",marginBottom:6,textTransform:"uppercase",letterSpacing:0.4}}>Locks active on deploy</Label>
           <Label size={12} color={C.teal} style={{display:"block",marginBottom:3}}>Ticker ${form.sym.toUpperCase()} locked -- derivatives blocked</Label>
           {form.imageFile&&<Label size={12} color={C.teal} style={{display:"block",marginBottom:3}}>Image hash locked -- similar images blocked</Label>}
-          {pvpProtected&&<Label size={12} color={C.teal} style={{display:"block",marginBottom:3}}>Identity locked -- all derivatives blocked ✓</Label>}{!hasIdentityLink&&<Label size={12} color={C.textTer} style={{display:"block",marginBottom:3}}>No identity lock — no Twitter/website was linked</Label>}
+          {pvpProtected&&<Label size={12} color={C.teal} style={{display:"block",marginBottom:3}}>Identity locked -- all derivatives blocked ✓</Label>}
+          {!hasIdentityLink&&<Label size={12} color={C.textTer} style={{display:"block",marginBottom:3}}>No identity lock — no Twitter/website was linked</Label>}
           <Label size={11} color={C.textTer} style={{display:"block",marginTop:6,lineHeight:1.5}}>All locks become permanent once you cross $50K market cap.</Label>
         </div>
         {topicRes&&!deployBlocked&&<div style={{background:C.tealBg,border:`1px solid ${C.tealBd}`,borderRadius:10,padding:"10px 12px",marginBottom:16,textAlign:"left"}}><Label size={12} color={C.teal} weight={600}>Verified topic locked -- {topicRes.source} / {topicRes.entity}</Label></div>}
@@ -1739,15 +1184,15 @@ function LaunchModal({onClose,slotData}) {
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
             {[
               {l:"Deploy fee",v:"1.5 SOL",c:C.accent,rows:[["50%","Seeds LP immediately"],["30%","Protocol"],["10%","Quarterly airdrop pool"],["10%","Infrastructure"]]},
-              {l:"Trading fee",v:"1.5%",c:C.green,rows:[["0.90%","LP"],["0.35%","Protocol"],["0.25%","Quarterly USDC airdrop pool"]]},
+              {l:"Trading fee",v:"1.5%",c:C.green,rows:[["0.60%","LP auto-compound"],["0.50%","Quarterly USDC airdrop"],["0.40%","Protocol"]]},
             ].map(card=>(
               <div key={card.l} style={{background:C.card,borderRadius:8,padding:"14px",border:`1px solid ${card.l==="Trading fee"?"rgba(48,209,88,0.25)":C.border}`}}>
                 <Label size={10} color={C.textTer} style={{display:"block",marginBottom:6,textTransform:"uppercase",letterSpacing:0.5}}>{card.l}</Label>
                 <Label size={20} color={card.c} weight={700} style={{display:"block",marginBottom:8}}>{card.v}</Label>
                 {card.rows.map(([pct,lbl])=>(
                   <div key={lbl} style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
-                    <Label size={11} color={lbl==="Holders quarterly USDC"?C.green:card.c} weight={lbl==="Holders quarterly USDC"?700:600}>{pct}</Label>
-                    <Label size={11} color={lbl==="Holders quarterly USDC"?C.green:C.textTer} weight={lbl==="Holders quarterly USDC"?600:400}>{lbl}</Label>
+                    <Label size={11} color={lbl.includes("airdrop")?C.green:card.c} weight={lbl.includes("airdrop")?700:600}>{pct}</Label>
+                    <Label size={11} color={lbl.includes("airdrop")?C.green:C.textTer} weight={lbl.includes("airdrop")?600:400}>{lbl}</Label>
                   </div>
                 ))}
               </div>
@@ -1760,18 +1205,18 @@ function LaunchModal({onClose,slotData}) {
             <Label size={12} color={C.textSec} style={{lineHeight:1.6}}>On graduation LP migrates to Raydium and locks forever. All fees compound back into LP depth automatically on every trade.</Label>
           </div>
 
-          {/* Airdrop mechanics */}
+          {/* Airdrop mechanics — updated to match simple quarterly model */}
           <div style={{background:C.goldBg,border:`1px solid ${C.goldBd}`,borderRadius:8,padding:"12px 14px",marginBottom:14}}>
-            <Label size={11} color={C.gold} weight={600} style={{display:"block",marginBottom:8,textTransform:"uppercase",letterSpacing:0.4}}>Airdrop mechanics</Label>
+            <Label size={11} color={C.gold} weight={600} style={{display:"block",marginBottom:8,textTransform:"uppercase",letterSpacing:0.4}}>Quarterly USDC airdrop</Label>
             <div style={{display:"flex",gap:4,marginBottom:8}}>
-              {[["85 SOL","filled"],["+5 min","snapshot"],["Top 10","only"],["daily","payout"],["Hold or","miss out"]].map(([v,l])=>(
+              {[["0.50%","per trade"],["All","holders"],["Quarterly","USDC"],["Proportional","by balance"],["Automatic","no claiming"]].map(([v,l])=>(
                 <div key={l} style={{textAlign:"center",flex:1,background:"rgba(0,0,0,0.2)",borderRadius:7,padding:"6px 2px"}}>
                   <Label size={11} color={C.gold} weight={700} style={{display:"block"}}>{v}</Label>
                   <Label size={9} color={C.textTer} style={{display:"block",marginTop:1}}>{l}</Label>
                 </div>
               ))}
             </div>
-            <Label size={11} color={C.textTer} style={{lineHeight:1.5}}>Top 10 at snapshot earn 0.15% of every trade. Pool drips 3-5% per MC milestone (7d TWAP).</Label>
+            <Label size={11} color={C.textTer} style={{lineHeight:1.5}}>0.50% of every trade accumulates in the airdrop pool. Each quarter, USDC is distributed to all holders proportional by their balance. No staking, no tiers — just hold.</Label>
           </div>
 
           {/* Anti-bundle caps */}
@@ -1797,7 +1242,6 @@ function LaunchModal({onClose,slotData}) {
             onFocus={e=>{e.target.style.borderColor=C.borderHi;e.target.style.background="rgba(255,255,255,0.06)";}}
             onBlur={e=>{e.target.style.borderColor=C.border;e.target.style.background="rgba(255,255,255,0.04)";}}/>
 
-          {/* Ticker with lock check */}
           <div style={{marginBottom:8}}>
             <input value={form.sym} onChange={e=>setForm(p=>({...p,sym:e.target.value}))} placeholder="Ticker  e.g. PUNCH"
               style={{display:"block",width:"100%",background:"rgba(255,255,255,0.04)",border:`1.5px solid ${tickerBlock?C.redBd:inputTicker&&inputTicker.length>0?C.tealBd:C.border}`,borderRadius:12,padding:"13px 16px",color:C.text,fontSize:15,outline:"none",boxSizing:"border-box",transition:"border-color 0.15s, background 0.15s",fontFamily:"inherit"}}
@@ -1817,7 +1261,6 @@ function LaunchModal({onClose,slotData}) {
             )}
           </div>
 
-          {/* Image upload with hash lock check */}
           <div style={{marginBottom:8}}>
             <div style={{background:"rgba(255,255,255,0.04)",border:`1.5px dashed ${imageBlock?C.redBd:form.imageFile?C.tealBd:C.border}`,borderRadius:12,padding:"14px 16px",cursor:"pointer",transition:"border-color 0.15s"}}
               onClick={()=>document.getElementById("imgUpload").click()}>
@@ -1847,7 +1290,6 @@ function LaunchModal({onClose,slotData}) {
             onFocus={e=>{e.target.style.borderColor=C.borderHi;e.target.style.background="rgba(255,255,255,0.06)";}}
             onBlur={e=>{e.target.style.borderColor=C.border;e.target.style.background="rgba(255,255,255,0.04)";}}/>
 
-          {/* Twitter -- PVP locked to CA */}
           <div style={{marginBottom:8}}>
             <input value={form.twitter} onChange={e=>setForm(p=>({...p,twitter:e.target.value}))} placeholder="@twitter or x.com/handle — required for PVP lock"
               style={{display:"block",width:"100%",background:"rgba(255,255,255,0.04)",border:`1.5px solid ${twitterClaim?C.redBd:form.twitter.length>1?C.tealBd:C.border}`,borderRadius:12,padding:"13px 16px",color:C.text,fontSize:15,outline:"none",boxSizing:"border-box",transition:"border-color 0.15s, background 0.15s"}}
@@ -1867,7 +1309,6 @@ function LaunchModal({onClose,slotData}) {
             )}
           </div>
 
-          {/* Website -- PVP locked to CA */}
           <div style={{marginBottom:8}}>
             <input value={form.website} onChange={e=>setForm(p=>({...p,website:e.target.value}))} placeholder="Website URL — required for PVP lock"
               style={{display:"block",width:"100%",background:"rgba(255,255,255,0.04)",border:`1.5px solid ${websiteClaim?C.redBd:form.website.length>4?C.tealBd:C.border}`,borderRadius:12,padding:"13px 16px",color:C.text,fontSize:15,outline:"none",boxSizing:"border-box",transition:"border-color 0.15s, background 0.15s"}}
@@ -1887,7 +1328,6 @@ function LaunchModal({onClose,slotData}) {
             )}
           </div>
 
-          {/* No link = no PVP protection warning */}
           {!hasIdentityLink&&form.sym.trim().length>0&&(
             <div style={{display:"flex",alignItems:"flex-start",gap:8,padding:"10px 12px",background:"rgba(255,248,235,0.03)",border:`1px solid ${C.border}`,borderRadius:9,marginBottom:8}}>
               <div style={{width:4,height:4,borderRadius:"50%",background:C.textQuat,flexShrink:0,marginTop:4}}/>
@@ -1905,7 +1345,6 @@ function LaunchModal({onClose,slotData}) {
             </div>
           )}
 
-          {/* News/tweet URL -- PVP topic lock */}
           <div style={{marginBottom:8}}>
             <input value={form.topicUrl} onChange={e=>handleUrl(e.target.value)} placeholder="News or tweet URL (locks topic)"
               style={{display:"block",width:"100%",background:"rgba(255,255,255,0.04)",border:`1.5px solid ${topicRes?.claimed?C.redBd:topicRes&&!topicRes.claimed?C.tealBd:C.border}`,borderRadius:12,padding:"13px 16px",color:C.text,fontSize:15,outline:"none",boxSizing:"border-box",fontFamily:"inherit",transition:"border-color 0.15s, background 0.15s"}}
@@ -1934,7 +1373,6 @@ function LaunchModal({onClose,slotData}) {
                 </div>
               </div>
             </div>
-            {/* within-day slot progress */}
             <div style={{padding:"0 14px 8px"}}>
               <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
                 <Label size={10} color={C.textTer}>
@@ -1947,7 +1385,6 @@ function LaunchModal({onClose,slotData}) {
               <div style={{height:3,background:"rgba(255,255,255,0.05)",borderRadius:99,marginBottom:4}}>
                 <div style={{height:"100%",background:slotData.atCap?C.green:C.accent,width:`${(slotData.totalAvailable/slotData.cap)*100}%`,borderRadius:99,transition:"width 0.5s ease"}}/>
               </div>
-              {/* tier expansion progress */}
               {slotData.nextTier&&(
                 <div style={{height:2,background:"rgba(255,255,255,0.04)",borderRadius:99}}>
                   <div style={{height:"100%",background:C.blue,width:`${slotData.tierPct*100}%`,borderRadius:99,transition:"width 0.5s ease"}}/>
@@ -1958,12 +1395,9 @@ function LaunchModal({onClose,slotData}) {
 
           {deployBlocked&&!tickerBlock&&!imageBlock&&<div style={{padding:"9px 12px",background:C.redBg,border:`1px solid ${C.redBd}`,borderRadius:9,marginBottom:10}}><Label size={12} color={C.red}>Resolve all conflicts above to deploy.</Label></div>}
 
-          {/* Primary CTA - bonding curve */}
           <Btn onClick={()=>{if(!ready||deployBlocked)return;setState("loading");(async()=>{try{const provider=window?.solana;if(!provider?.isPhantom){window.open("https://phantom.app","_blank");setState("idle");return;}const{Keypair,SystemProgram,Transaction:SolTx,ComputeBudgetProgram,PublicKey:PK}=await import("@solana/web3.js");const{createInitializeMint2Instruction,createMintToInstruction,createAssociatedTokenAccountInstruction,getAssociatedTokenAddress,TOKEN_PROGRAM_ID,ASSOCIATED_TOKEN_PROGRAM_ID,MINT_SIZE,getMinimumBalanceForRentExemptMint}=await import("@solana/spl-token");const{PROGRAM_ID,getPoolPDA,getGlobalPDA,getLiquidityProviderPDA}=await import("./solana.js");const TOTAL_RAW=BigInt(1000000000)*BigInt(1000000000);const BONDING_RAW=BigInt(650000000)*BigInt(1000000000);const mk=Keypair.generate();console.log("New mint:",mk.publicKey.toBase58());const lam=await getMinimumBalanceForRentExemptMint(connection);const userAta=await getAssociatedTokenAddress(mk.publicKey,provider.publicKey);const tx1=new SolTx();tx1.add(ComputeBudgetProgram.setComputeUnitLimit({units:400000}));tx1.add(SystemProgram.createAccount({fromPubkey:provider.publicKey,newAccountPubkey:mk.publicKey,space:MINT_SIZE,lamports:lam,programId:TOKEN_PROGRAM_ID}));tx1.add(createInitializeMint2Instruction(mk.publicKey,9,provider.publicKey,provider.publicKey));tx1.add(createAssociatedTokenAccountInstruction(provider.publicKey,userAta,provider.publicKey,mk.publicKey));tx1.add(createMintToInstruction(mk.publicKey,userAta,provider.publicKey,TOTAL_RAW));const bh1=await connection.getLatestBlockhash("confirmed");tx1.recentBlockhash=bh1.blockhash;tx1.feePayer=provider.publicKey;tx1.partialSign(mk);const s1=await provider.signTransaction(tx1);const sig1=await connection.sendRawTransaction(s1.serialize(),{skipPreflight:true,maxRetries:10});console.log("Mint+Supply TX:",sig1);await connection.confirmTransaction({signature:sig1,blockhash:bh1.blockhash,lastValidBlockHeight:bh1.lastValidBlockHeight},"confirmed");console.log("Mint created + tokens minted");const tkr=form.sym||"TEST";const imgHashBuf=form.imageFile?await sha256(new Uint8Array(await form.imageFile.arrayBuffer())):Buffer.alloc(32);const idRaw=(form.twitter||form.website||"").trim().toLowerCase();const idHashBuf=idRaw.length>1?await sha256(idRaw):Buffer.alloc(32);const{tx:tx2,tickerBuf,imgHash,idHash}=await buildCreateRegistryTx(provider.publicKey,mk.publicKey,tkr,imgHashBuf,idHashBuf);tx2.add(ComputeBudgetProgram.setComputeUnitLimit({units:400000}));tx2.add(ComputeBudgetProgram.setComputeUnitPrice({microLamports:10000}));const bh2=await connection.getLatestBlockhash("confirmed");tx2.recentBlockhash=bh2.blockhash;tx2.feePayer=provider.publicKey;const r2=await provider.signAndSendTransaction(tx2,{skipPreflight:true});const sig2=r2.signature||r2;console.log("Registry TX:",sig2);await connection.confirmTransaction(sig2,"confirmed");console.log("Registry created");const[pool]=getPoolPDA(mk.publicKey);const globalPda=(()=>{const[g]=PK.findProgramAddressSync([Buffer.from("global")],PROGRAM_ID);return g;})();const[lpAccount]=PK.findProgramAddressSync([Buffer.from("LiqudityProvider"),pool.toBuffer(),provider.publicKey.toBuffer()],PROGRAM_ID);const poolAta=await getAssociatedTokenAddress(mk.publicKey,globalPda,true);const discAL=Buffer.from("b59d59438fb63448","hex");const dataAL=Buffer.alloc(8+8+8);discAL.copy(dataAL,0);dataAL.writeBigUInt64LE(BONDING_RAW,8);dataAL.writeBigUInt64LE(BigInt(0),16);const{TransactionInstruction:TxIx}=await import("@solana/web3.js");const ixAL=new TxIx({keys:[{pubkey:pool,isSigner:false,isWritable:true},{pubkey:globalPda,isSigner:false,isWritable:true},{pubkey:lpAccount,isSigner:false,isWritable:true},{pubkey:mk.publicKey,isSigner:false,isWritable:true},{pubkey:poolAta,isSigner:false,isWritable:true},{pubkey:userAta,isSigner:false,isWritable:true},{pubkey:provider.publicKey,isSigner:true,isWritable:true},{pubkey:SystemProgram.programId,isSigner:false,isWritable:false},{pubkey:TOKEN_PROGRAM_ID,isSigner:false,isWritable:false},{pubkey:ASSOCIATED_TOKEN_PROGRAM_ID,isSigner:false,isWritable:false}],programId:PROGRAM_ID,data:dataAL});const tx3=new SolTx();tx3.add(ComputeBudgetProgram.setComputeUnitLimit({units:400000}));tx3.add(ComputeBudgetProgram.setComputeUnitPrice({microLamports:10000}));tx3.add(ixAL);const bh3=await connection.getLatestBlockhash("confirmed");tx3.recentBlockhash=bh3.blockhash;tx3.feePayer=provider.publicKey;const r3=await provider.signAndSendTransaction(tx3,{skipPreflight:true});const sig3=r3.signature||r3;console.log("AddLiquidity TX:",sig3);await connection.confirmTransaction(sig3,"confirmed");console.log("Pool created + liquidity added");try{const tx4=await buildClaimLocksTx(provider.publicKey,mk.publicKey,tickerBuf,imgHash,idHash);tx4.add(ComputeBudgetProgram.setComputeUnitLimit({units:400000}));tx4.add(ComputeBudgetProgram.setComputeUnitPrice({microLamports:10000}));const bh4=await connection.getLatestBlockhash("confirmed");tx4.recentBlockhash=bh4.blockhash;tx4.feePayer=provider.publicKey;const r4=await provider.signAndSendTransaction(tx4,{skipPreflight:true});const sig4=r4.signature||r4;console.log("ClaimLocks TX:",sig4);await connection.confirmTransaction(sig4,"confirmed");console.log("Locks claimed");}catch(lockErr){console.warn("claim_locks failed (non-fatal):",lockErr.message);}console.log("FULL DEPLOY COMPLETE");setState("done");}catch(e){console.error(e);alert(e.message);setState("idle");}})();}} full color={C.accent} loading={state==="loading"} disabled={!ready||deployBlocked||state==="loading"}>
             {`Deploy -- 1.5 SOL${pvpProtected?" + PVP Lock":""}`}
           </Btn>
-
-
 
         </div>
       </div>
@@ -1983,6 +1417,11 @@ function NotifPanel({onClose}) {
           <button onClick={()=>setNotifs(n=>n.map(x=>({...x,read:true})))} style={{background:"none",border:"none",cursor:"pointer"}}><Label size={12} color={C.blue}>Mark all read</Label></button>
         </div>
         <div style={{maxHeight:"60vh",overflowY:"auto"}}>
+          {notifs.length===0&&(
+            <div style={{padding:"32px 16px",textAlign:"center"}}>
+              <Label size={13} color={C.textQuat}>No notifications</Label>
+            </div>
+          )}
           {notifs.map(n=>(
             <div key={n.id} onClick={()=>setNotifs(ns=>ns.map(x=>x.id===n.id?{...x,read:true}:x))} style={{padding:"13px 16px",borderBottom:`1px solid ${C.border}`,background:n.read?"transparent":"rgba(255,255,255,0.02)",cursor:"pointer",transition:"background 0.1s"}}>
               <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
@@ -2003,8 +1442,6 @@ function NotifPanel({onClose}) {
 // ===== PORTFOLIO =====
 
 function Portfolio({onSelectToken,onClose}) {
-  const totalPnl=MY_POSITIONS.reduce((a,p)=>a+(p.held*(p.current-p.entry)),0);
-  const totalPending=MY_POSITIONS.reduce((a,p)=>{const tok=INIT_TOKENS.find(t=>t.sym===p.sym);return a+(tok&&getAS(tok).s==="live"?p.pendingDrip:0);},0);
   return (
     <div style={{minHeight:"100vh",background:C.bg,color:C.text,fontFamily:C.sans}}>
       <style>{FONT}</style>
@@ -2013,73 +1450,9 @@ function Portfolio({onSelectToken,onClose}) {
         <Label size={18} color={C.text} weight={700}>Portfolio</Label>
       </div>
       <div style={{maxWidth:520,margin:"0 auto",padding:"20px 20px 100px"}}>
-        {/* Summary */}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:20}}>
-          {[{l:"P&L",v:`${totalPnl>=0?"+":""}$${totalPnl.toFixed(2)}`,c:totalPnl>=0?C.green:C.red},{l:"Pending drips",v:`${totalPending.toFixed(3)} SOL`,c:C.accent},{l:"Positions",v:MY_POSITIONS.length,c:C.text}].map(s=>(
-            <GlassCard key={s.l} style={{padding:"14px"}} hover={false}>
-              <Label size={10} color={C.textTer} style={{display:"block",marginBottom:6,textTransform:"uppercase",letterSpacing:0.4}}>{s.l}</Label>
-              <Label size={16} color={s.c} weight={700}>{s.v}</Label>
-            </GlassCard>
-          ))}
+        <div style={{padding:"48px 24px",textAlign:"center"}}>
+          <Label size={15} color={C.textQuat}>Connect your wallet to view positions</Label>
         </div>
-
-        <Label size={11} color={C.textTer} style={{display:"block",marginBottom:10,textTransform:"uppercase",letterSpacing:0.5}}>Positions</Label>
-        {MY_POSITIONS.map((pos,i)=>{
-          const t=INIT_TOKENS.find(t=>t.sym===pos.sym);
-          return (
-            <GlassCard key={pos.sym} onClick={()=>onSelectToken(t)} style={{padding:"14px 16px",marginBottom:8,animation:`fadeUp 0.25s ease ${i*0.06}s both`}}>
-              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}>
-                <Avatar sym={pos.sym} pi={pos.pi} size={40}/>
-                <div style={{flex:1}}>
-                  <Label size={15} color={C.text} weight={600}>{pos.sym}</Label>
-                  <div style={{marginTop:2}}><Label size={12} color={C.textTer}>{pos.held.toLocaleString()} tokens</Label></div>
-                </div>
-                <div style={{textAlign:"right"}}>
-                  <Label size={16} color={pos.pnlPct>=0?C.green:C.red} weight={700}>{pos.pnlPct>=0?"+":""}{pos.pnlPct}%</Label>
-                  <div style={{marginTop:2}}><Label size={11} color={C.textTer} mono>${(pos.held*pos.current).toFixed(2)}</Label></div>
-                </div>
-              </div>
-              <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-                {pos.whitelisted&&<Tag color={C.green}>Whitelisted</Tag>}
-                {pos.inTop10&&<Tag color={C.accent}>Top 10</Tag>}
-                {!pos.inTop10&&pos.whitelisted&&<Tag color={C.textTer}>Out of top 10</Tag>}
-                {pos.pendingDrip>0&&(()=>{const tok=INIT_TOKENS.find(t=>t.sym===pos.sym);return tok&&getAS(tok).s==="live";})()&&<Tag color={C.gold}>{pos.pendingDrip} SOL drip</Tag>}
-                <Tag color={pos.dripMode==="reinject"?C.green:pos.dripMode==="usdc"?C.purple:C.accent}>{pos.dripMode==="reinject"?"↺ reinject":pos.dripMode}</Tag>
-              </div>
-            </GlassCard>
-          );
-        })}
-
-        <Label size={11} color={C.textTer} style={{display:"block",marginBottom:10,marginTop:20,textTransform:"uppercase",letterSpacing:0.5}}>Deployed tokens</Label>
-        {MY_TOKENS.map((tok,i)=>{
-          const t=INIT_TOKENS.find(t=>t.sym===tok.sym);
-          return (
-            <GlassCard key={tok.sym} onClick={()=>onSelectToken(t)} style={{padding:"14px 16px",marginBottom:8,animation:`fadeUp 0.25s ease ${i*0.06}s both`}}>
-              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}>
-                <Avatar sym={tok.sym} pi={tok.pi} size={40}/>
-                <div style={{flex:1}}>
-                  <div style={{display:"flex",alignItems:"center",gap:7}}>
-                    <Label size={15} color={C.text} weight={600}>{tok.sym}</Label>
-                    <Tag color={C.accent}>Creator</Tag>
-                  </div>
-                  <div style={{marginTop:2}}><Label size={12} color={C.textTer}>Launched {tok.launched}</Label></div>
-                </div>
-                <div style={{textAlign:"right"}}>
-                  <Label size={15} color={C.accent} weight={600}>{tok.feesEarned} SOL</Label>
-                  <div style={{marginTop:2}}><Label size={10} color={C.textTer}>fees earned</Label></div>
-                </div>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6}}>
-                {[["MC",fmt(tok.mcap)],["24h",`${tok.chg>=0?"+":""}${tok.chg}%`],["Holders",tok.holders]].map(([l,v])=>(
-                  <div key={l} style={{background:C.sheet,borderRadius:8,padding:"8px 10px",border:`1px solid ${C.border}`}}>
-                    <Label size={9} color={C.textTer} style={{display:"block",marginBottom:3}}>{l}</Label>
-                    <Label size={12} color={l==="24h"?(tok.chg>=0?C.green:C.red):C.text} weight={500}>{v}</Label>
-                  </div>
-                ))}
-              </div>
-            </GlassCard>
-          );
-        })}
       </div>
     </div>
   );
@@ -2150,8 +1523,7 @@ function Tokenomics({onClose}) {
   const sections=[
     {id:"overview", label:"Overview"},
     {id:"fees",     label:"Fees"},
-    
-    {id:"vault",    label:"Vault"},
+    {id:"airdrop",  label:"Airdrop"},
     {id:"slots",    label:"Slots"},
     {id:"pvp",      label:"PVP"},
   ];
@@ -2160,7 +1532,6 @@ function Tokenomics({onClose}) {
     <div style={{minHeight:"100vh",background:C.bg,color:C.text,fontFamily:C.sans}}>
       <style>{FONT}</style>
 
-      {/* Sticky nav */}
       <div style={{position:"sticky",top:0,zIndex:100,background:"rgba(0,0,0,0.88)",backdropFilter:"blur(30px)",WebkitBackdropFilter:"blur(30px)",borderBottom:`1px solid ${C.border}`}}>
         <div style={{height:52,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 24px"}}>
           <div style={{display:"flex",alignItems:"center",gap:12}}>
@@ -2187,17 +1558,16 @@ function Tokenomics({onClose}) {
           <div style={{animation:"fadeUp 0.2s ease"}}>
             <div style={{marginBottom:24}}>
               <Label size={26} color={C.text} weight={700} style={{display:"block",marginBottom:8,letterSpacing:"-0.04em",lineHeight:1.2}}>How summit.moon works</Label>
-              <Label size={14} color={C.textSec} style={{lineHeight:1.7,display:"block"}}>A token launchpad where volume unlocks launch slots, top holders earn from every trade, and identities are race-claimed on-chain. No dev allocation. No rep system. No veto.</Label>
+              <Label size={14} color={C.textSec} style={{lineHeight:1.7,display:"block"}}>A token launchpad where every holder earns from every trade. 0.50% of all swap fees go to a quarterly USDC airdrop — proportional by balance, automatic, no staking.</Label>
             </div>
 
-            {/* Supply visual */}
             <GlassCard style={{padding:"18px 20px",marginBottom:10}} hover={false}>
               <Label size={11} color={C.textTer} style={{display:"block",marginBottom:12,textTransform:"uppercase",letterSpacing:"0.05em"}}>Token supply — 1 billion</Label>
               <div style={{display:"flex",borderRadius:8,overflow:"hidden",height:28,marginBottom:10}}>
                 {[
                   {pct:65,col:C.accent,label:"Bonding curve"},
-                  {pct:25,col:C.purple,label:"Vault (25%)"},
-                  {pct:10,col:C.textTer,label:"Reserve"},
+                  {pct:25,col:C.purple,label:"Reserve (25%)"},
+                  {pct:10,col:C.textTer,label:"LP seed"},
                 ].map(s=>(
                   <div key={s.label} style={{width:`${s.pct}%`,background:`${s.col}`,opacity:s.pct===10?0.3:0.85,display:"flex",alignItems:"center",justifyContent:"center"}}>
                     <Label size={10} color="#fff" weight={700}>{s.pct}%</Label>
@@ -2207,8 +1577,8 @@ function Tokenomics({onClose}) {
               <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
                 {[
                   {col:C.accent, label:"650M — bonding curve"},
-                  {col:C.purple, label:"250M — vault (unlocks at $500K)"},
-                  {col:C.textTer,label:"100M — reserve"},
+                  {col:C.purple, label:"250M — reserve"},
+                  {col:C.textTer,label:"100M — LP seed"},
                 ].map(s=>(
                   <div key={s.label} style={{display:"flex",alignItems:"center",gap:6}}>
                     <div style={{width:8,height:8,borderRadius:"50%",background:s.col,flexShrink:0}}/>
@@ -2218,11 +1588,9 @@ function Tokenomics({onClose}) {
               </div>
             </GlassCard>
 
-            {/* Core mechanic cards */}
             {[
-              {title:"Bonding curve → Raydium",color:C.accent,desc:"Every token launches on a sqrt bonding curve targeting 85 SOL. Once filled, the transfer hook is removed and LP migrates to Raydium CLMM and locks forever."},
-              {title:"Airdrop earn each quarter",color:C.gold,desc:"1% of every swap accumulates in a fee vault on-chain. The keeper bot snapshots the airdrop eligible holders each quarter and distributes in USDC, tokens, or auto-reinjects back into the token."},
-              {title:"$500K vault — top 10 only",color:C.purple,desc:"25% of supply (250M tokens) is locked in a PDA vault from day one. It unlocks once the token sustains $500K market cap for 1 hour, then drips to the top 10 holders over 7 days."},
+              {title:"Bonding curve → Raydium",color:C.accent,desc:"Every token launches on a bonding curve targeting 85 SOL. Once filled, LP migrates to Raydium CLMM and locks forever."},
+              {title:"Quarterly USDC airdrop",color:C.gold,desc:"0.50% of every swap accumulates in an airdrop pool. Each quarter, USDC is distributed to all holders proportional by balance. No staking, no claiming — automatic."},
               {title:"Volume opens slots",color:C.blue,desc:"There is no fixed daily launch limit. Every $10K in platform volume unlocks a new launch slot. Hot days = more launches. Dead days = fewer. The market self-regulates."},
               {title:"Identity PVP",color:C.purple,desc:"Link your Twitter or website at deploy time. That identity locks to your CA on-chain. All derivatives and copycats are blocked. First mover with a link wins the narrative permanently."},
               {title:"No dev allocation",color:C.green,desc:"Zero tokens reserved for the deployer. No insider supply. No vesting cliff to dump. You compete with everyone else from the same starting line."},
@@ -2244,13 +1612,12 @@ function Tokenomics({onClose}) {
             <Label size={22} color={C.text} weight={700} style={{display:"block",marginBottom:6,letterSpacing:"-0.03em"}}>Fee structure</Label>
             <Label size={14} color={C.textSec} style={{display:"block",marginBottom:18,lineHeight:1.6}}>Simple. On-chain. No treasury. No discretion. Fees split at the contract level on every transaction.</Label>
 
-            {/* vs pump.fun */}
             <GlassCard style={{padding:"18px 20px",marginBottom:12,background:"rgba(255,214,10,0.04)",border:`1px solid rgba(255,214,10,0.2)`}} hover={false}>
               <Label size={12} color={C.gold} weight={700} style={{display:"block",marginBottom:12,textTransform:"uppercase",letterSpacing:"0.04em"}}>Why 1.5% beats 1.0%</Label>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
                 {[
                   {label:"pump.fun",fee:"1.0%",sub:"charges it, keeps all of it",col:C.textTer},
-                  {label:"summit.moon",fee:"1.5%",sub:"charges it, 0.25% goes to quarterly airdrop",col:C.gold},
+                  {label:"summit.moon",fee:"1.5%",sub:"charges it, 0.50% goes to quarterly airdrop",col:C.gold},
                 ].map(p=>(
                   <div key={p.label} style={{padding:"12px 14px",background:"rgba(255,255,255,0.03)",borderRadius:10,border:`1px solid ${p.col}20`}}>
                     <Label size={10} color={p.col} style={{display:"block",marginBottom:6,textTransform:"uppercase",letterSpacing:"0.04em"}}>{p.label}</Label>
@@ -2259,10 +1626,9 @@ function Tokenomics({onClose}) {
                   </div>
                 ))}
               </div>
-              <Label size={11} color={C.textTer} style={{lineHeight:1.6}}>The extra 0.25% on a $1K trade is $2.50. No one leaves for $2.50. But a top-5 holder of a $1M/day token earns ~$70/hr back. The fee is competitive cover for a completely different model.</Label>
+              <Label size={11} color={C.textTer} style={{lineHeight:1.6}}>The extra 0.50% on a $1K trade is $5. No one leaves for $5. But every holder of an active token earns USDC each quarter just for holding.</Label>
             </GlassCard>
 
-            {/* Swap fee breakdown */}
             <GlassCard style={{marginBottom:12,overflow:"hidden"}} hover={false}>
               <div style={{padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <div>
@@ -2271,14 +1637,14 @@ function Tokenomics({onClose}) {
                 </div>
                 <div style={{textAlign:"right"}}>
                   <Label size={10} color={C.textTer} style={{display:"block",marginBottom:4}}>On $1M volume</Label>
-                  <Label size={18} color={C.text} weight={600}>$12,500</Label>
+                  <Label size={18} color={C.text} weight={600}>$15,000</Label>
                 </div>
               </div>
               <div style={{borderTop:`1px solid ${C.border}`}}/>
               {[
-                {pct:"1.00%",label:"Airdrop holders",detail:"USDC paid hourly, proportional by balance",col:C.gold,hero:true,of:"$10,000"},
-                {pct:"0.15%",label:"Raydium LP",detail:"Locked forever — compounds on every trade",col:C.teal,hero:false,of:"$1,500"},
-                {pct:"0.10%",label:"Protocol",detail:"Platform ops + reinject bonus funding",col:C.textSec,hero:false,of:"$1,000"},
+                {pct:"0.60%",label:"LP auto-compound",detail:"Locked forever — compounds on every trade",col:C.teal,hero:false,of:"$6,000"},
+                {pct:"0.50%",label:"Quarterly USDC airdrop",detail:"All holders, proportional by balance, automatic",col:C.gold,hero:true,of:"$5,000"},
+                {pct:"0.40%",label:"Protocol",detail:"Platform ops + infrastructure",col:C.textSec,hero:false,of:"$4,000"},
               ].map((r,i,a)=>(
                 <div key={r.pct} style={{display:"flex",alignItems:"center",gap:14,padding:"13px 20px",background:r.hero?"rgba(255,214,10,0.04)":"transparent",borderBottom:i<a.length-1?`1px solid ${C.border}`:"none"}}>
                   <Label size={20} color={r.col} weight={700} style={{width:52,flexShrink:0}}>{r.pct}</Label>
@@ -2291,7 +1657,6 @@ function Tokenomics({onClose}) {
               ))}
             </GlassCard>
 
-            {/* Deploy fee */}
             <GlassCard style={{marginBottom:12,overflow:"hidden"}} hover={false}>
               <div style={{padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <div>
@@ -2302,10 +1667,10 @@ function Tokenomics({onClose}) {
               </div>
               <div style={{borderTop:`1px solid ${C.border}`}}/>
               {[
-                {pct:"50%",label:"Raydium LP seed",detail:"0.75 SOL — immediate liquidity on graduation",col:C.teal,of:"0.75 SOL"},
+                {pct:"50%",label:"LP seed",detail:"0.75 SOL — immediate liquidity",col:C.teal,of:"0.75 SOL"},
                 {pct:"30%",label:"Protocol",detail:"0.45 SOL — platform revenue",col:C.textSec,of:"0.45 SOL"},
-                {pct:"10%",label:"Holder USDC pool",detail:"0.15 SOL — seeds your first hourly drip",col:C.gold,of:"0.15 SOL"},
-                {pct:"10%",label:"Anti-PVP infra",detail:"0.15 SOL — identity lock + indexer ops",col:C.purple,of:"0.15 SOL"},
+                {pct:"10%",label:"Airdrop pool",detail:"0.15 SOL — seeds first quarter",col:C.gold,of:"0.15 SOL"},
+                {pct:"10%",label:"Infrastructure",detail:"0.15 SOL — indexer + infra",col:C.purple,of:"0.15 SOL"},
               ].map((r,i,a)=>(
                 <div key={r.pct} style={{display:"flex",alignItems:"center",gap:14,padding:"12px 20px",borderBottom:i<a.length-1?`1px solid ${C.border}`:"none"}}>
                   <Label size={18} color={r.col} weight={700} style={{width:42,flexShrink:0}}>{r.pct}</Label>
@@ -2322,7 +1687,7 @@ function Tokenomics({onClose}) {
             <GlassCard style={{marginBottom:12,overflow:"hidden"}} hover={false}>
               <div style={{padding:"14px 20px 12px"}}>
                 <Label size={14} color={C.text} weight={700} style={{display:"block",marginBottom:4}}>Launch caps — anti-bundle</Label>
-                <Label size={12} color={C.textTer}>Max % of bonding supply (650M tokens) any single wallet can hold in each time window. Enforced on-chain in the buy instruction.</Label>
+                <Label size={12} color={C.textTer}>Max % of bonding supply (650M tokens) any single wallet can hold in each time window. Enforced on-chain.</Label>
               </div>
               <div style={{borderTop:`1px solid ${C.border}`}}/>
               {[
@@ -2339,34 +1704,13 @@ function Tokenomics({onClose}) {
               ))}
             </GlassCard>
 
-            {/* Anti-snipe delays */}
-            <GlassCard style={{marginBottom:12,overflow:"hidden"}} hover={false}>
-              <div style={{padding:"14px 20px 12px"}}>
-                <Label size={14} color={C.text} weight={700} style={{display:"block",marginBottom:4}}>Anti-snipe delays</Label>
-                <Label size={12} color={C.textTer}>Applied before the vault snapshot fires after $500K MC is hit and sustained.</Label>
-              </div>
-              <div style={{borderTop:`1px solid ${C.border}`}}/>
-              {[
-                {phase:"Pre-graduation",  delay:"1 hour",    reason:"Token is web-only — real protection needed against coordinated snapshot sniping."},
-                {phase:"Post-graduation", delay:"5 minutes", reason:"Raydium is live, Jupiter bundles exist — 1hr would be security theatre at this stage."},
-              ].map((r,i,a)=>(
-                <div key={r.phase} style={{display:"flex",gap:14,padding:"12px 20px",borderBottom:i<a.length-1?`1px solid ${C.border}`:"none",alignItems:"flex-start"}}>
-                  <div style={{width:112,flexShrink:0}}>
-                    <Label size={10} color={C.teal} weight={600} style={{display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.03em"}}>{r.phase}</Label>
-                    <Label size={18} color={C.text} weight={700}>{r.delay}</Label>
-                  </div>
-                  <Label size={12} color={C.textSec} style={{lineHeight:1.65,paddingTop:3}}>{r.reason}</Label>
-                </div>
-              ))}
-            </GlassCard>
-
             {/* Protocol revenue */}
             <GlassCard style={{padding:"18px 20px"}} hover={false}>
               <Label size={13} color={C.text} weight={700} style={{display:"block",marginBottom:12}}>Protocol revenue at scale</Label>
               {[
                 {src:"Deploy 30%",   note:"50 launches/day × 1.5 SOL × $180 × 0.30",  day:"$4,050/day",  yr:"$2.25M AUD/yr"},
-                {src:"Swap 0.10%",   note:"$15M daily platform volume × 0.10%",        day:"$15,000/day", yr:"$8.2M AUD/yr"},
-                {src:"Total",        note:"Conservative — volume scales with tokens",   day:"$19,050/day", yr:"$10.4M AUD/yr"},
+                {src:"Swap 0.40%",   note:"$15M daily platform volume × 0.40%",        day:"$60,000/day", yr:"$32.8M AUD/yr"},
+                {src:"Total",        note:"Conservative — volume scales with tokens",   day:"$64,050/day", yr:"$35M AUD/yr"},
               ].map((r,i)=>(
                 <div key={r.src} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:i<2?`1px solid ${C.border}`:"none"}}>
                   <div>
@@ -2379,29 +1723,23 @@ function Tokenomics({onClose}) {
                   </div>
                 </div>
               ))}
-              <div style={{marginTop:10,padding:"8px 12px",background:"rgba(34,197,94,0.06)",border:"1px solid rgba(34,197,94,0.15)",borderRadius:8}}>
-                <Label size={11} color={C.green} style={{lineHeight:1.6}}>At $1M avg vol/token: $56M AUD/yr. You gave holders the big slice on purpose — that's what drives the volume that pays the protocol.</Label>
-              </div>
             </GlassCard>
           </div>
         )}
 
-        {/* ── DRIP ───────────────────────────────────── */}
-        {activeSection==="drip"&&(
+        {/* ── AIRDROP ───────────────────────────────── */}
+        {activeSection==="airdrop"&&(
           <div style={{animation:"fadeUp 0.2s ease"}}>
-            <Label size={22} color={C.text} weight={700} style={{display:"block",marginBottom:6,letterSpacing:"-0.03em"}}>Hourly drip</Label>
-            <Label size={14} color={C.textSec} style={{display:"block",marginBottom:18,lineHeight:1.6}}>1% of every swap accumulates on-chain. Every hour the keeper bot snapshots the airdrop eligible holders and distributes. No claiming. Lands in your wallet automatically.</Label>
+            <Label size={22} color={C.text} weight={700} style={{display:"block",marginBottom:6,letterSpacing:"-0.03em"}}>Quarterly airdrop</Label>
+            <Label size={14} color={C.textSec} style={{display:"block",marginBottom:18,lineHeight:1.6}}>0.50% of every swap accumulates in the airdrop pool. Each quarter, USDC is distributed to all holders proportional by their balance. No staking. No claiming. Automatic.</Label>
 
-            {/* How it works step by step */}
             <GlassCard style={{padding:"20px",marginBottom:12}} hover={false}>
-              <Label size={11} color={C.textTer} style={{display:"block",marginBottom:16,textTransform:"uppercase",letterSpacing:"0.05em"}}>How it works — each quarter</Label>
+              <Label size={11} color={C.textTer} style={{display:"block",marginBottom:16,textTransform:"uppercase",letterSpacing:"0.05em"}}>How it works</Label>
               {[
-                {n:"1",title:"Fee accumulates",desc:"1% of every buy and sell is routed to an on-chain fee vault (PDA) specific to that token.",col:C.accent},
-                {n:"2",title:"Keeper reads airdrop eligible",desc:"The keeper bot scans all token accounts for the mint and finds the airdrop eligible wallets by balance.",col:C.gold},
-                {n:"3",title:"Snapshot written on-chain",desc:"update_holder_snapshot is called — the 15 wallets and their share_bps are written to the HolderSnapshot PDA.",col:C.blue},
-                {n:"4",title:"Jupiter swap: SOL → USDC",desc:"The accumulated SOL in the fee vault is swapped to USDC via Jupiter v6. Keeper signs the VersionedTransaction.",col:C.teal},
-                {n:"5",title:"Distribute per drip mode",desc:"USDC splits to each holder proportionally. Paid as USDC, swapped to tokens, or reinject-bought depending on each wallet's chosen mode.",col:C.green},
-                {n:"6",title:"distribute_fees on-chain",desc:"The on-chain distribute_fees instruction is called to zero out accumulated_fees_lamports. Enforces the 1hr minimum between payouts.",col:C.purple},
+                {n:"1",title:"Fee accumulates",desc:"0.50% of every buy and sell is routed to the airdrop pool on-chain.",col:C.accent},
+                {n:"2",title:"Quarter ends",desc:"At the end of each quarter, a snapshot of all token holders and their balances is taken.",col:C.gold},
+                {n:"3",title:"Pool → USDC",desc:"Accumulated SOL in the pool is swapped to USDC.",col:C.teal},
+                {n:"4",title:"Distribution",desc:"USDC is sent to every holder proportional to their % of total supply. Lands in your wallet automatically.",col:C.green},
               ].map((s,i,a)=>(
                 <div key={s.n} style={{display:"flex",gap:14,marginBottom:i<a.length-1?18:0}}>
                   <div style={{display:"flex",flexDirection:"column",alignItems:"center",flexShrink:0}}>
@@ -2418,60 +1756,17 @@ function Tokenomics({onClose}) {
               ))}
             </GlassCard>
 
-            {/* Drip modes */}
+            {/* Example payouts */}
             <GlassCard style={{overflow:"hidden",marginBottom:12}} hover={false}>
               <div style={{padding:"14px 20px 12px"}}>
-                <Label size={14} color={C.text} weight={700} style={{display:"block",marginBottom:4}}>Drip modes — your choice per token</Label>
-                <Label size={12} color={C.textTer}>Set individually for each token you hold. Changes apply to the next hourly cycle. Stored off-chain, signed by your wallet.</Label>
-              </div>
-              <div style={{borderTop:`1px solid ${C.border}`}}/>
-              {[
-                {
-                  mode:"USDC", icon:"◈", col:C.purple, lock:null, bonus:null,
-                  desc:"Your proportional cut arrives as USDC directly in your wallet each quarter. No selling of your token position. Best for passive income off the holding.",
-                  ideal:"You want stable realised income without reducing your token bag.",
-                },
-                {
-                  mode:"Token", icon:"◎", col:C.blue, lock:null, bonus:null,
-                  desc:"The USDC amount is auto-swapped to more of this token via Jupiter and sent to your wallet. Real on-chain market buy. Accumulates position size.",
-                  ideal:"You want to compound into the token without manually reinvesting.",
-                },
-                {
-                  mode:"Reinject", icon:"↺", col:C.green, lock:"72hr lock", bonus:"+10% bonus",
-                  desc:"USDC → Jupiter market buy → your token ATA. Creates a visible green candle on the chart. The +10% bonus is funded by the protocol reserve. Your bag is locked for 72 hours after each reinject.",
-                  ideal:"You're bullish and want to actively support price while getting a bonus for it.",
-                },
-              ].map((m,i,a)=>(
-                <div key={m.mode} style={{padding:"16px 20px",borderBottom:i<a.length-1?`1px solid ${C.border}`:"none",background:m.mode==="Reinject"?"rgba(34,197,94,0.035)":"transparent"}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,flexWrap:"wrap"}}>
-                    <span style={{fontSize:16,color:m.col,lineHeight:1}}>{m.icon}</span>
-                    <Label size={15} color={m.col} weight={700}>{m.mode}</Label>
-                    {m.bonus&&<div style={{padding:"2px 9px",background:"rgba(34,197,94,0.12)",border:"1px solid rgba(34,197,94,0.3)",borderRadius:5}}><Label size={10} color={C.green} weight={700}>{m.bonus}</Label></div>}
-                    {m.lock&&<div style={{padding:"2px 9px",background:"rgba(255,255,255,0.04)",border:`1px solid ${C.border}`,borderRadius:5}}><Label size={10} color={C.textTer}>{m.lock}</Label></div>}
-                  </div>
-                  <Label size={12} color={C.textSec} style={{lineHeight:1.7,display:"block",marginBottom:6}}>{m.desc}</Label>
-                  <div style={{display:"flex",alignItems:"flex-start",gap:6}}>
-                    <Label size={10} color={m.col} weight={600} style={{flexShrink:0,paddingTop:1}}>BEST IF</Label>
-                    <Label size={11} color={C.textTer} style={{lineHeight:1.5}}>{m.ideal}</Label>
-                  </div>
-                </div>
-              ))}
-              <div style={{padding:"10px 16px",background:"rgba(255,255,255,0.02)",borderTop:`1px solid ${C.border}`}}>
-                <Label size={11} color={C.textTer} style={{lineHeight:1.6}}>Reinject creates a real on-chain market buy — visible as a green candle on the chart. The +10% is protocol-funded, not taken from other holders.</Label>
-              </div>
-            </GlassCard>
-
-            {/* Payout example table */}
-            <GlassCard style={{overflow:"hidden",marginBottom:12}} hover={false}>
-              <div style={{padding:"14px 20px 12px"}}>
-                <Label size={14} color={C.text} weight={700} style={{display:"block",marginBottom:4}}>Example hourly payouts</Label>
-                <Label size={12} color={C.textTer}>Realistic holding distribution across airdrop eligible. 1% split proportionally.</Label>
+                <Label size={14} color={C.text} weight={700} style={{display:"block",marginBottom:4}}>Example quarterly payouts</Label>
+                <Label size={12} color={C.textTer}>At different daily volumes and holding percentages. 0.50% of volume × 90 days.</Label>
               </div>
               <div style={{overflowX:"auto"}}>
                 <table style={{width:"100%",borderCollapse:"collapse",minWidth:360}}>
                   <thead>
                     <tr style={{background:"rgba(255,255,255,0.03)",borderBottom:`1px solid ${C.border}`}}>
-                      {["Rank","Holding","$300K/day","$1M/day","$5M/day"].map(h=>(
+                      {["Holding %","$100K/day","$500K/day","$2M/day"].map(h=>(
                         <td key={h} style={{padding:"8px 14px"}}>
                           <Label size={10} color={C.textTer} weight={600} style={{textTransform:"uppercase",letterSpacing:"0.04em"}}>{h}</Label>
                         </td>
@@ -2480,145 +1775,38 @@ function Tokenomics({onClose}) {
                   </thead>
                   <tbody>
                     {[
-                      {rank:1,  pct:"5.0%", v300:"$21/hr", v1m:"$70/hr",  v5m:"$351/hr"},
-                      {rank:3,  pct:"3.5%", v300:"$15/hr", v1m:"$49/hr",  v5m:"$246/hr"},
-                      {rank:5,  pct:"2.5%", v300:"$11/hr", v1m:"$35/hr",  v5m:"$175/hr"},
-                      {rank:8,  pct:"1.5%", v300:"$6/hr",  v1m:"$21/hr",  v5m:"$105/hr"},
-                      {rank:11, pct:"1.0%", v300:"$4/hr",  v1m:"$14/hr",  v5m:"$70/hr"},
-                      {rank:15, pct:"0.5%", v300:"$2/hr",  v1m:"$7/hr",   v5m:"$35/hr"},
+                      {pct:"5.0%",  v100:"$22,500", v500:"$112,500", v2m:"$450,000"},
+                      {pct:"2.0%",  v100:"$9,000",  v500:"$45,000",  v2m:"$180,000"},
+                      {pct:"1.0%",  v100:"$4,500",  v500:"$22,500",  v2m:"$90,000"},
+                      {pct:"0.5%",  v100:"$2,250",  v500:"$11,250",  v2m:"$45,000"},
+                      {pct:"0.1%",  v100:"$450",    v500:"$2,250",   v2m:"$9,000"},
                     ].map((r,i,a)=>(
-                      <tr key={r.rank} style={{background:i%2===0?"rgba(255,255,255,0.01)":"transparent",borderBottom:i<a.length-1?`1px solid ${C.border}`:"none"}}>
-                        <td style={{padding:"10px 14px"}}><Label size={11} color={i<3?C.gold:C.textTer} weight={700}>#{r.rank}</Label></td>
-                        <td style={{padding:"10px 14px"}}><Label size={12} color={C.text}>{r.pct}</Label></td>
-                        <td style={{padding:"10px 14px"}}><Label size={12} color={C.green}>{r.v300}</Label></td>
-                        <td style={{padding:"10px 14px"}}><Label size={12} color={C.green} weight={600}>{r.v1m}</Label></td>
-                        <td style={{padding:"10px 14px"}}><Label size={12} color={C.gold} weight={700}>{r.v5m}</Label></td>
+                      <tr key={r.pct} style={{background:i%2===0?"rgba(255,255,255,0.01)":"transparent",borderBottom:i<a.length-1?`1px solid ${C.border}`:"none"}}>
+                        <td style={{padding:"10px 14px"}}><Label size={12} color={C.text} weight={600}>{r.pct}</Label></td>
+                        <td style={{padding:"10px 14px"}}><Label size={12} color={C.green}>{r.v100}</Label></td>
+                        <td style={{padding:"10px 14px"}}><Label size={12} color={C.green} weight={600}>{r.v500}</Label></td>
+                        <td style={{padding:"10px 14px"}}><Label size={12} color={C.gold} weight={700}>{r.v2m}</Label></td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
               <div style={{padding:"10px 14px",background:"rgba(255,255,255,0.02)",borderTop:`1px solid ${C.border}`}}>
-                <Label size={11} color={C.textTer}>$300K/day = quiet. $1M/day = solid. $5M/day = viral. Rank #1 at $351/hr on a hot token. Rank #15 earns the floor at any volume.</Label>
+                <Label size={11} color={C.textTer}>Formula: (daily volume × 0.50% × 90 days) × your holding %. Everyone earns. Bigger bag = bigger airdrop.</Label>
               </div>
             </GlassCard>
 
-            {/* Eligibility rules */}
             <GlassCard style={{padding:"18px 20px"}} hover={false}>
-              <Label size={13} color={C.text} weight={700} style={{display:"block",marginBottom:12}}>Eligibility rules</Label>
+              <Label size={13} color={C.text} weight={700} style={{display:"block",marginBottom:12}}>FAQ</Label>
               {[
-                {q:"Who qualifies?",  a:"Airdrop wallets by token balance at snapshot time. Ranked by raw amount, not % of supply."},
-                {q:"When does it start?", a:"Immediately after graduation (LP migration to Raydium). No MC threshold for hourly drip — that's only the vault."},
-                {q:"What if I drop out?", a:"Below rank 15 and your drips pause immediately at next snapshot. Re-enter and they resume — no penalty."},
-                {q:"Anti-sybil?",     a:"Wallets with same funding source, timing pattern, or correlated buys are clustered as one entity on-chain. Splitting wallets doesn't help."},
-                {q:"USDC source?",    a:"The keeper swaps accumulated SOL fees to USDC via Jupiter v6 before distributing. You receive real USDC, not wrapped SOL."},
+                {q:"Who qualifies?",  a:"Every wallet holding the token at the quarterly snapshot. No minimum balance."},
+                {q:"Do I need to stake?", a:"No. Just hold the token in your wallet. No staking, no locking, no claiming interface."},
+                {q:"When do I get paid?", a:"Once per quarter. USDC lands in your wallet automatically."},
+                {q:"What if I sell before the snapshot?", a:"You miss that quarter's airdrop. Buy back in and you're eligible for the next one."},
+                {q:"Is it proportional?", a:"Yes. Your airdrop = (your balance / total supply) × total pool. Hold 1% of supply = get 1% of the quarterly pool."},
               ].map((r,i,a)=>(
                 <div key={r.q} style={{padding:"10px 0",borderBottom:i<a.length-1?`1px solid ${C.border}`:"none"}}>
                   <Label size={12} color={C.gold} weight={600} style={{display:"block",marginBottom:3}}>{r.q}</Label>
-                  <Label size={12} color={C.textSec} style={{lineHeight:1.65}}>{r.a}</Label>
-                </div>
-              ))}
-            </GlassCard>
-          </div>
-        )}
-
-        {/* ── VAULT ──────────────────────────────────── */}
-        {activeSection==="vault"&&(
-          <div style={{animation:"fadeUp 0.2s ease"}}>
-            <Label size={22} color={C.text} weight={700} style={{display:"block",marginBottom:6,letterSpacing:"-0.03em"}}>$500K vault</Label>
-            <Label size={14} color={C.textSec} style={{display:"block",marginBottom:18,lineHeight:1.6}}>25% of supply (250M tokens) is locked in a PDA vault from the moment the token launches. It unlocks once and drips over 7 days to the top 10 holders.</Label>
-
-            {/* Key numbers */}
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12}}>
-              {[
-                {val:"250M",  sub:"tokens locked", col:C.purple},
-                {val:"$500K", sub:"MC trigger",     col:C.gold},
-                {val:"7 days",sub:"drip period",    col:C.teal},
-              ].map(s=>(
-                <GlassCard key={s.val} style={{padding:"14px 16px",textAlign:"center",border:`1px solid ${s.col}20`}} hover={false}>
-                  <Label size={22} color={s.col} weight={700} style={{display:"block",lineHeight:1}}>{s.val}</Label>
-                  <Label size={10} color={C.textTer} style={{display:"block",marginTop:5}}>{s.sub}</Label>
-                </GlassCard>
-              ))}
-            </div>
-
-            {/* Timeline */}
-            <GlassCard style={{padding:"20px",marginBottom:12}} hover={false}>
-              <Label size={11} color={C.textTer} style={{display:"block",marginBottom:16,textTransform:"uppercase",letterSpacing:"0.05em"}}>How the vault unlocks</Label>
-              {[
-                {n:"1",title:"Token hits $500K market cap",desc:"The vault gate opens. The current MC must be sustained — a flash spike does not count.",col:C.accent},
-                {n:"2",title:"Hold $500K for 1 full hour",desc:"The keeper bot monitors vault_mc_first_seen on the BondingState. If MC drops before 1hr, the clock resets.",col:C.gold},
-                {n:"3",title:"Anti-snipe delay",desc:"After 1hr hold confirmed: 5 min post-graduation (Raydium live), 1 hour pre-graduation (web-only, coordinated sniping is real).",col:C.blue},
-                {n:"4",title:"Top 10 snapshot",desc:"The top 10 holders at this exact block are recorded. Their proportional share of the vault is fixed at this moment.",col:C.teal},
-                {n:"5",title:"7-day linear drip begins",desc:"~35.7M tokens/day split proportionally across the top 10. Drip mode applies — USDC, token, or reinject.",col:C.green},
-              ].map((s,i,a)=>(
-                <div key={s.n} style={{display:"flex",gap:14,marginBottom:i<a.length-1?18:0}}>
-                  <div style={{display:"flex",flexDirection:"column",alignItems:"center",flexShrink:0}}>
-                    <div style={{width:26,height:26,borderRadius:8,background:`${s.col}18`,border:`1px solid ${s.col}35`,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                      <Label size={11} color={s.col} weight={700}>{s.n}</Label>
-                    </div>
-                    {i<a.length-1&&<div style={{width:1,flex:1,background:C.border,marginTop:3,minHeight:14}}/>}
-                  </div>
-                  <div style={{paddingBottom:i<a.length-1?4:0,paddingTop:2}}>
-                    <Label size={13} color={C.text} weight={600} style={{display:"block",marginBottom:3}}>{s.title}</Label>
-                    <Label size={12} color={C.textSec} style={{lineHeight:1.65,display:"block"}}>{s.desc}</Label>
-                  </div>
-                </div>
-              ))}
-            </GlassCard>
-
-            {/* Payout example */}
-            <GlassCard style={{overflow:"hidden",marginBottom:12}} hover={false}>
-              <div style={{padding:"14px 20px 12px"}}>
-                <Label size={14} color={C.text} weight={700} style={{display:"block",marginBottom:4}}>Example vault payout</Label>
-                <Label size={12} color={C.textTer}>Token hits $500K MC, top 10 snapshot taken. 250M tokens dripped over 7 days at $2M MC.</Label>
-              </div>
-              <div style={{overflowX:"auto"}}>
-                <table style={{width:"100%",borderCollapse:"collapse",minWidth:340}}>
-                  <thead>
-                    <tr style={{background:"rgba(255,255,255,0.03)",borderBottom:`1px solid ${C.border}`}}>
-                      {["Rank","% held","Vault share","Tokens/day","Value/day"].map(h=>(
-                        <td key={h} style={{padding:"8px 14px"}}>
-                          <Label size={10} color={C.textTer} weight={600} style={{textTransform:"uppercase",letterSpacing:"0.04em"}}>{h}</Label>
-                        </td>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[
-                      {rank:1,  pct:"5%",  share:"12.5%", day:"4.46M",  usd:"$892"},
-                      {rank:2,  pct:"4%",  share:"10.0%", day:"3.57M",  usd:"$714"},
-                      {rank:5,  pct:"2%",  share:"5.0%",  day:"1.79M",  usd:"$357"},
-                      {rank:10, pct:"1%",  share:"2.5%",  day:"0.89M",  usd:"$178"},
-                    ].map((r,i,a)=>(
-                      <tr key={r.rank} style={{background:i%2===0?"rgba(255,255,255,0.01)":"transparent",borderBottom:i<a.length-1?`1px solid ${C.border}`:"none"}}>
-                        <td style={{padding:"10px 14px"}}><Label size={11} color={i<3?C.gold:C.textTer} weight={700}>#{r.rank}</Label></td>
-                        <td style={{padding:"10px 14px"}}><Label size={12} color={C.text}>{r.pct}</Label></td>
-                        <td style={{padding:"10px 14px"}}><Label size={12} color={C.purple}>{r.share}</Label></td>
-                        <td style={{padding:"10px 14px"}}><Label size={12} color={C.teal}>{r.day}</Label></td>
-                        <td style={{padding:"10px 14px"}}><Label size={12} color={C.gold} weight={600}>{r.usd}</Label></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div style={{padding:"10px 14px",background:"rgba(255,255,255,0.02)",borderTop:`1px solid ${C.border}`}}>
-                <Label size={11} color={C.textTer}>At $2M MC with 1% holder (rank 10): $178/day in tokens for 7 days = $1,246 total — on top of ongoing quarterly USDC drip.</Label>
-              </div>
-            </GlassCard>
-
-            {/* FAQ */}
-            <GlassCard style={{padding:"18px 20px"}} hover={false}>
-              <Label size={13} color={C.text} weight={700} style={{display:"block",marginBottom:12}}>Vault FAQ</Label>
-              {[
-                {q:"Does it fire more than once?",       a:"No. One trigger per token, ever. Once the airdrop period completes the PDA is empty. The incentive to reach $500K is a one-time event."},
-                {q:"What if I'm rank 11 at snapshot?",   a:"You miss the vault. This is intentional — top 10 only, hard cutoff, no partial eligibility."},
-                {q:"Can the snapshot be gamed?",         a:"The anti-snipe delay (1hr or 5min depending on phase) exists specifically to prevent late coordinated buys. The 1hr hold requirement prevents flash-spike manipulation."},
-                {q:"What's the drip mode for vault?",    a:"Same as your hourly drip setting. USDC, token, or reinject. All three apply to vault tokens equally."},
-                {q:"Is it on-chain?",                    a:"Yes. The vault supply is held in a PDA vault account. The trigger, snapshot, and drip are all managed by the Anchor program and keeper bot with no admin keys."},
-              ].map((r,i,a)=>(
-                <div key={r.q} style={{padding:"10px 0",borderBottom:i<a.length-1?`1px solid ${C.border}`:"none"}}>
-                  <Label size={12} color={C.purple} weight={600} style={{display:"block",marginBottom:3}}>{r.q}</Label>
                   <Label size={12} color={C.textSec} style={{lineHeight:1.65}}>{r.a}</Label>
                 </div>
               ))}
@@ -2639,7 +1827,6 @@ function Tokenomics({onClose}) {
                 {t:"Volume unlock",      v:"Every $10K platform volume = +1 slot added during the day"},
                 {t:"Cap tier system",    v:"Platform cumulative volume expands the hard cap over time"},
                 {t:"Slot consumed",      v:"Each deploy burns one slot — recovered as others are unlocked by volume"},
-                {t:"No manipulation",    v:"Volume must come from real trades — wash trading penalised by anti-sybil"},
               ].map((r,i,a)=>(
                 <div key={r.t} style={{display:"flex",gap:14,padding:"10px 0",borderBottom:i<a.length-1?`1px solid ${C.border}`:"none"}}>
                   <Label size={12} color={C.accent} weight={600} style={{width:114,flexShrink:0}}>{r.t}</Label>
@@ -2666,34 +1853,6 @@ function Tokenomics({onClose}) {
                   <Label size={12} color={r.col} weight={700} style={{width:36,textAlign:"right",flexShrink:0}}>{r.cap}</Label>
                 </div>
               ))}
-              <div style={{marginTop:12,padding:"8px 12px",background:"rgba(255,255,255,0.03)",borderRadius:8}}>
-                <Label size={11} color={C.textTer} style={{lineHeight:1.6}}>Once the platform crosses a cumulative volume milestone, the hard cap expands permanently. You never go backwards.</Label>
-              </div>
-            </GlassCard>
-
-            <GlassCard style={{padding:"20px",marginBottom:10}} hover={false}>
-              <Label size={11} color={C.textTer} style={{display:"block",marginBottom:14,textTransform:"uppercase",letterSpacing:"0.05em"}}>What this looks like in practice</Label>
-              {[
-                {day:"Dead day",    slots:"10 slots",      desc:"Sits at floor. Less launches = more attention per token.",     col:C.textTer},
-                {day:"Normal day",  slots:"15 – 25 slots", desc:"Steady volume. Slots open and drain naturally all day.",       col:C.blue},
-                {day:"Viral day",   slots:"Up to cap",     desc:"Volume spikes. May push through a tier milestone permanently.",col:C.green},
-                {day:"Cap expands", slots:"New hard cap",  desc:"$500K → 100 slots. $5M → 150. $50M → 200. $500M → 250.",     col:C.accent},
-              ].map((r,i,a)=>(
-                <div key={r.day} style={{display:"flex",alignItems:"center",gap:14,padding:"12px 0",borderBottom:i<a.length-1?`1px solid ${C.border}`:"none"}}>
-                  <div style={{flex:1}}>
-                    <Label size={13} color={C.text} weight={500} style={{display:"block",marginBottom:2}}>{r.day}</Label>
-                    <Label size={12} color={C.textTer}>{r.desc}</Label>
-                  </div>
-                  <div style={{background:`${r.col}15`,border:`1px solid ${r.col}25`,borderRadius:8,padding:"5px 12px",flexShrink:0,whiteSpace:"nowrap"}}>
-                    <Label size={12} color={r.col} weight={600}>{r.slots}</Label>
-                  </div>
-                </div>
-              ))}
-            </GlassCard>
-
-            <GlassCard style={{padding:"20px"}} hover={false}>
-              <Label size={11} color={C.textTer} style={{display:"block",marginBottom:10,textTransform:"uppercase",letterSpacing:"0.05em"}}>Midnight UTC reset</Label>
-              <Label size={13} color={C.textSec} style={{lineHeight:1.7,display:"block"}}>At UTC midnight, if open slots are below the floor of 10, they reset to 10. If already above 10, nothing changes. No camping the clock, no big reset event — just a gentle floor that kicks in on slow days.</Label>
             </GlassCard>
           </div>
         )}
@@ -2704,12 +1863,11 @@ function Tokenomics({onClose}) {
             <Label size={22} color={C.text} weight={700} style={{display:"block",marginBottom:6,letterSpacing:"-0.03em"}}>Identity PVP</Label>
             <Label size={14} color={C.textSec} style={{display:"block",marginBottom:18,lineHeight:1.6}}>Link your Twitter or website at deploy. That link activates the identity lock on-chain. Without a link — no lock, no protection. With a link — first mover wins, all derivatives blocked permanently.</Label>
 
-            {/* Link requirement callout */}
             <GlassCard style={{padding:"16px 20px",marginBottom:12,background:"rgba(167,139,250,0.05)",border:`1px solid rgba(167,139,250,0.2)`}} hover={false}>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                 {[
-                  {state:"No link provided",col:C.textTer,items:["No identity lock","Anyone can copy your narrative","No ticker protection from identity","Only image hash applied"]},
-                  {state:"Link provided",col:C.purple,items:["Identity locks to your CA","All derivatives blocked on-chain","Ticker + identity + image locked","First mover wins permanently"]},
+                  {state:"No link provided",col:C.textTer,items:["No identity lock","Anyone can copy your narrative","Only image hash applied"]},
+                  {state:"Link provided",col:C.purple,items:["Identity locks to your CA","All derivatives blocked on-chain","First mover wins permanently"]},
                 ].map(s=>(
                   <div key={s.state} style={{padding:"12px 14px",background:"rgba(255,255,255,0.03)",borderRadius:10,border:`1px solid ${s.col}20`}}>
                     <Label size={11} color={s.col} weight={700} style={{display:"block",marginBottom:10,textTransform:"uppercase",letterSpacing:"0.03em"}}>{s.state}</Label>
@@ -2724,39 +1882,10 @@ function Tokenomics({onClose}) {
               </div>
             </GlassCard>
 
-            {/* What gets locked */}
-            <GlassCard style={{padding:"20px",marginBottom:12}} hover={false}>
-              <Label size={11} color={C.textTer} style={{display:"block",marginBottom:14,textTransform:"uppercase",letterSpacing:"0.05em"}}>Identity normalisation — what gets locked</Label>
-              {[
-                {input:"@elonmusk",                         identity:"elonmusk",    type:"Handle",    blocked:false},
-                {input:"x.com/elonmusk",                   identity:"elonmusk",    type:"X link",    blocked:false},
-                {input:"https://x.com/elonmusk/status/123",identity:"elonmusk",    type:"Post URL",  blocked:false},
-                {input:"elondoge.com",                      identity:"elondoge",    type:"Domain",    blocked:false},
-                {input:"@elonmusk_sol",                     identity:"elonmusksol", type:"Derivative",blocked:true},
-              ].map((r,i,a)=>(
-                <div key={r.input} style={{padding:"11px 0",borderBottom:i<a.length-1?`1px solid ${C.border}`:"none"}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
-                    <Label size={12} color={C.textSec} style={{fontFamily:"monospace"}}>{r.input}</Label>
-                    <Tag color={C.textTer}>{r.type}</Tag>
-                  </div>
-                  <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4h8M5 1l4 3-4 3" stroke="rgba(255,255,255,0.2)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                    <Label size={12} color={r.blocked?C.red:C.teal} weight={600}>identity: {r.identity}</Label>
-                    {r.blocked&&<div style={{padding:"1px 7px",background:"rgba(244,63,94,0.12)",border:"1px solid rgba(244,63,94,0.3)",borderRadius:4}}><Label size={10} color={C.red} weight={600}>BLOCKED</Label></div>}
-                    {!r.blocked&&<div style={{padding:"1px 7px",background:"rgba(45,212,191,0.1)",border:"1px solid rgba(45,212,191,0.25)",borderRadius:4}}><Label size={10} color={C.teal} weight={600}>LOCKED</Label></div>}
-                  </div>
-                </div>
-              ))}
-              <div style={{marginTop:10,padding:"8px 12px",background:"rgba(255,255,255,0.03)",borderRadius:8}}>
-                <Label size={11} color={C.textTer} style={{lineHeight:1.6}}>All identity strings are normalised (lowercase, stripped) and keccak256 hashed before being written on-chain as identity_hash [u8; 32]. The hash is checked at every deploy.</Label>
-              </div>
-            </GlassCard>
-
-            {/* Three locks */}
             <GlassCard style={{overflow:"hidden",marginBottom:12}} hover={false}>
               <div style={{padding:"14px 20px 12px"}}>
                 <Label size={14} color={C.text} weight={700} style={{display:"block",marginBottom:4}}>Three on-chain locks</Label>
-                <Label size={12} color={C.textTer}>All three are written to the LockEntry PDA and checked at every deploy attempt.</Label>
+                <Label size={12} color={C.textTer}>All three are checked at every deploy attempt.</Label>
               </div>
               <div style={{borderTop:`1px solid ${C.border}`}}/>
               {[
@@ -2776,16 +1905,13 @@ function Tokenomics({onClose}) {
               ))}
             </GlassCard>
 
-            {/* PVP rules */}
-            <GlassCard style={{padding:"18px 20px"}} hover={false}>
+            <GlassCard style={{padding:"18px 20px",marginBottom:12}} hover={false}>
               <Label size={11} color={C.textTer} style={{display:"block",marginBottom:12,textTransform:"uppercase",letterSpacing:"0.05em"}}>The rules</Label>
               {[
                 "Token crosses $50K market cap — ticker, image, and identity all lock permanently",
                 "Token drops below $50K — all locks release. Fair game to compete again",
-                "Locks are on-chain in LockEntry PDAs — no admin can override",
                 "Identity only locks if you provided Twitter or website at deploy. No link = no identity lock",
-                "First mover with a link wins. Late arrivals with the same identity get blocked at the program level",
-                "Image lock uses dhash — perceptual similarity, not pixel equality. Recolours and crops are caught",
+                "First mover with a link wins. Late arrivals with the same identity get blocked",
               ].map((t,i,a)=>(
                 <div key={i} style={{display:"flex",alignItems:"flex-start",gap:10,marginBottom:i<a.length-1?10:0}}>
                   <div style={{width:4,height:4,borderRadius:"50%",background:C.purple,flexShrink:0,marginTop:6}}/>
@@ -2794,7 +1920,6 @@ function Tokenomics({onClose}) {
               ))}
             </GlassCard>
 
-            {/* PVP examples */}
             <PvpExamples/>
           </div>
         )}
@@ -2803,8 +1928,6 @@ function Tokenomics({onClose}) {
     </div>
   );
 }
-
-// ===== MAIN APP =====
 
 
 // ===== SLOT PANEL =====
@@ -2822,13 +1945,9 @@ function SlotPanel({slotData, platformVol, tokens, onClose, onLaunch}) {
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:300,display:"flex",alignItems:"flex-end",justifyContent:"center",backdropFilter:"blur(20px)",animation:"fadeIn 0.15s ease"}} onClick={onClose}>
       <div style={{background:C.sheet,borderRadius:"24px 24px 0 0",width:"100%",maxWidth:680,maxHeight:"88vh",overflowY:"auto",border:`1px solid ${C.border}`,borderBottom:"none",animation:"slideUp 0.22s ease",paddingBottom:32}} onClick={e=>e.stopPropagation()}>
-
-        {/* Handle */}
         <div style={{display:"flex",justifyContent:"center",paddingTop:12,marginBottom:4}}>
           <div style={{width:36,height:4,borderRadius:99,background:"rgba(255,255,255,0.12)"}}/>
         </div>
-
-        {/* Header */}
         <div style={{padding:"16px 24px 0",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div>
             <Label size={22} color={C.text} weight={700}>Launch slots</Label>
@@ -2836,10 +1955,7 @@ function SlotPanel({slotData, platformVol, tokens, onClose, onLaunch}) {
           </div>
           <button onClick={onClose} style={{background:"rgba(255,255,255,0.06)",border:"none",borderRadius:20,width:36,height:36,cursor:"pointer",color:C.textSec,fontSize:18}}>x</button>
         </div>
-
         <div style={{padding:"20px 24px 0",display:"flex",flexDirection:"column",gap:14}}>
-
-          {/* Big slot number */}
           <div style={{display:"flex",gap:12}}>
             <div style={{flex:1,background:C.card,border:`1px solid ${slotData.open>5?C.greenBd:slotData.open>0?C.accentBd:C.redBd}`,borderRadius:8,padding:"18px 20px"}}>
               <Label size={11} color={C.textTer} style={{display:"block",marginBottom:6,textTransform:"uppercase",letterSpacing:0.5}}>Open slots now</Label>
@@ -2853,7 +1969,6 @@ function SlotPanel({slotData, platformVol, tokens, onClose, onLaunch}) {
             </div>
           </div>
 
-          {/* Volume bar to next slot */}
           {!slotData.atCap&&(
             <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:"16px 18px"}}>
               <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
@@ -2867,11 +1982,9 @@ function SlotPanel({slotData, platformVol, tokens, onClose, onLaunch}) {
                   transition:"width 0.8s ease"
                 }}/>
               </div>
-              <Label size={11} color={C.textTer} style={{display:"block",marginTop:6}}>Every $10K traded = +1 slot. Keep trading.</Label>
             </div>
           )}
 
-          {/* Tier progression */}
           <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:"16px 18px"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
               <Label size={13} color={C.text} weight={600}>Cap tier progression</Label>
@@ -2879,7 +1992,6 @@ function SlotPanel({slotData, platformVol, tokens, onClose, onLaunch}) {
                 <Label size={11} color={C.accent} weight={600}>{slotData.tier.label} -- {slotData.cap} cap</Label>
               </div>
             </div>
-            {/* Tier bars */}
             <div style={{display:"flex",gap:4,marginBottom:10}}>
               {CAP_TIERS.map((tier,i)=>(
                 <div key={i} style={{flex:1,height:4,borderRadius:99,background:i<=curTierIdx?tierColors[i]:"rgba(255,255,255,0.08)",transition:"background 0.3s"}}/>
@@ -2905,48 +2017,9 @@ function SlotPanel({slotData, platformVol, tokens, onClose, onLaunch}) {
             )}
           </div>
 
-          {/* Volume breakdown */}
-          <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:"16px 18px"}}>
-            <Label size={13} color={C.text} weight={600} style={{display:"block",marginBottom:12}}>Volume summary</Label>
-            <div style={{display:"flex",flexDirection:"column",gap:0}}>
-              {[
-                ["Total platform vol", fmtVol(platformVol), C.text],
-                ["Avg vol per token", fmtVol(avgVol), C.textSec],
-                ["Hottest token", topToken?`${topToken.sym} -- ${topToken.vol}`:"--", C.accent],
-                ["Near graduation", `${nearGrad} token${nearGrad!==1?"s":""}`, C.purple],
-                ["Bonded (migrating)", `${bonded} token${bonded!==1?"s":""}`, C.gold],
-                ["Graduated to Raydium", `${graduated} token${graduated!==1?"s":""}`, C.green],
-              ].map(([label,val,col],i,a)=>(
-                <div key={label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:i<a.length-1?`1px solid rgba(255,255,255,0.05)`:"none"}}>
-                  <Label size={12} color={C.textTer}>{label}</Label>
-                  <Label size={12} color={col} weight={600} mono>{val}</Label>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* How slots work */}
-          <div style={{background:"rgba(255,159,10,0.06)",border:`1px solid rgba(255,159,10,0.15)`,borderRadius:8,padding:"16px 18px"}}>
-            <Label size={13} color={C.accent} weight={600} style={{display:"block",marginBottom:10}}>How slots work</Label>
-            {[
-              "Platform starts with 50 launch slots per day",
-              "Every $10K traded unlocks +1 slot up to the current cap",
-              "Volume milestones expand the cap: $500K to Tier 2 (100), $5M to Tier 3 (150), and so on",
-              "Minimum 10 slots always open regardless of volume",
-              "Midnight UTC resets the day -- unused slots don't carry over",
-            ].map((s,i)=>(
-              <div key={i} style={{display:"flex",gap:10,marginBottom:i<4?8:0}}>
-                <div style={{width:5,height:5,borderRadius:"50%",background:C.accent,flexShrink:0,marginTop:5}}/>
-                <Label size={12} color={C.textSec}>{s}</Label>
-              </div>
-            ))}
-          </div>
-
-          {/* CTA */}
           <Btn full color={C.accent} onClick={()=>{onClose();onLaunch();}}>
             Launch a token -- {slotData.open} slot{slotData.open!==1?"s":""} remaining
           </Btn>
-
         </div>
       </div>
     </div>
@@ -2972,47 +2045,31 @@ function FeedRow({t, onClick, rank}) {
     }}
       onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.03)"}
       onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-
-      {/* Rank */}
       <div style={{width:28,flexShrink:0,textAlign:"center"}}>
         <Label size={11} color={rank<=3?C.gold:"rgba(255,255,255,0.18)"} weight={700} mono>{rank}</Label>
       </div>
-
-      {/* Avatar */}
       <div style={{marginRight:12,flexShrink:0}}>
         <Avatar sym={t.sym} pi={t.pi} size={36}/>
       </div>
-
-      {/* Name + desc */}
       <div style={{width:130,flexShrink:0}}>
         <Label size={14} color={C.text} weight={700} style={{display:"block",letterSpacing:"-0.02em"}}>{t.sym}</Label>
         <Label size={11} color={C.textQuat} style={{display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:120}}>{t.name}</Label>
       </div>
-
-      {/* Sparkline */}
       <div style={{width:72,flexShrink:0,marginRight:16}}>
         <Spark data={spark} color={up?C.green:C.red} width={72} height={26}/>
       </div>
-
-      {/* MC */}
       <div style={{width:90,flexShrink:0}}>
         <Label size={14} color={C.text} weight={600} mono style={{display:"block"}}>{fmt(t.mcap)}</Label>
         <Label size={11} color={up?C.green:C.red} weight={500} mono>{up?"+":""}{t.chg.toFixed(1)}%</Label>
       </div>
-
-      {/* Vol */}
       <div style={{width:72,flexShrink:0}}>
         <Label size={11} color={C.textQuat} style={{display:"block",marginBottom:2}}>vol</Label>
         <Label size={13} color={C.textSec} weight={500} mono>{t.vol}</Label>
       </div>
-
-      {/* Holders */}
       <div style={{width:60,flexShrink:0}}>
         <Label size={11} color={C.textQuat} style={{display:"block",marginBottom:2}}>holders</Label>
         <Label size={13} color={C.textSec} weight={500} mono>{t.holders.toLocaleString()}</Label>
       </div>
-
-      {/* Bonding bar OR raydium badge */}
       <div style={{flex:1,marginLeft:16}}>
         {t.graduated?(
           <div style={{display:"inline-flex",alignItems:"center",gap:6,padding:"4px 10px",
@@ -3032,8 +2089,6 @@ function FeedRow({t, onClick, rank}) {
           </div>
         )}
       </div>
-
-      {/* Status dot */}
       <div style={{width:24,flexShrink:0,display:"flex",justifyContent:"center"}}>
         {as.s==="live"&&<div style={{width:6,height:6,borderRadius:"50%",background:C.green,animation:"pulse 2s infinite"}}/>}
         {as.s==="pending"&&<div style={{width:6,height:6,borderRadius:"50%",background:C.gold}}/>}
@@ -3058,8 +2113,6 @@ function TabFeed({tokens, onSelect}) {
 
   return (
     <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,overflow:"hidden"}}>
-
-      {/* Tab bar */}
       <div style={{display:"flex",borderBottom:`1px solid ${C.border}`,padding:"0 8px"}}>
         {tabs.map(t=>{
           const isActive = t.id===tab;
@@ -3080,15 +2133,12 @@ function TabFeed({tokens, onSelect}) {
               }}>
                 <Label size={10} color={isActive?t.color:C.textQuat} weight={600}>{t.tokens.length}</Label>
               </div>
-              {/* Active indicator line */}
               {isActive&&<div style={{position:"absolute",bottom:0,left:8,right:8,height:2,
                 background:t.color,borderRadius:"2px 2px 0 0"}}/>}
             </button>
           );
         })}
       </div>
-
-      {/* Column headers */}
       <div style={{display:"flex",alignItems:"center",gap:0,padding:"0 20px",height:32,
         background:"rgba(255,255,255,0.02)",borderBottom:`1px solid rgba(255,255,255,0.04)`}}>
         <div style={{width:28}}/>
@@ -3101,8 +2151,6 @@ function TabFeed({tokens, onSelect}) {
         <div style={{flex:1,marginLeft:16}}><Label size={10} color={C.textQuat} style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Bonding</Label></div>
         <div style={{width:24}}/>
       </div>
-
-      {/* Rows */}
       {active.tokens.length>0?(
         <div>
           {active.tokens.map((t,i)=>(
@@ -3118,6 +2166,8 @@ function TabFeed({tokens, onSelect}) {
   );
 }
 
+
+// ===== MAIN APP =====
 
 export default function SummitMoon() {
   const [selected,setSelected]=useState(null);
@@ -3148,17 +2198,8 @@ export default function SummitMoon() {
   const [notifs]=useState([]);
   const [platformVol,setPlatformVol]=useState(0);
 
-
-
   const unread=notifs.filter(n=>!n.read).length;
   const slotData={open:50,totalAvailable:50,cap:50,atCap:false,toNextSlot:0,tierPct:1,atFloor:false,tier:{label:"Launch"},nextTier:{cap:100,vol:100000}};
-  const filtered=tokens.filter(t=>{
-    if(filter==="hot") return t.chg>50&&t.mcap>500000;
-    if(filter==="new") return t.elapsed<=30&&t.mcap<500000;
-    if(filter==="neargrad") return (t.raisedSOL||0)>=60&&!t.bondingFull;
-    if(filter==="graduated") return t.graduated;
-    return t.chg>50&&t.mcap>500000;
-  });
 
   if(selected) return <TokenPage t={selected} onClose={()=>setSelected(null)} connected={connected} onConnect={connectWallet}/>;
   if(view==="portfolio") return <Portfolio onSelectToken={t=>{setView("feed");setSelected(t);}} onClose={()=>setView("feed")}/>
@@ -3168,10 +2209,9 @@ export default function SummitMoon() {
     <div style={{minHeight:"100vh",background:C.bg,color:C.text,fontFamily:C.sans}}>
       <style>{FONT}</style>
 
-      {/* Nav bar — editorial, hairline bottom */}
       <nav style={{position:"sticky",top:0,zIndex:100,background:"rgba(13,12,11,0.92)",backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",borderBottom:`1px solid ${C.border}`,height:52,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 24px"}}>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
-          <img src="data:image/png;base64,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" style={{width:22,height:22,objectFit:"contain",flexShrink:0,opacity:0.55}} alt="summit.moon"/>
+          <img src="data:image/png;base64,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" style={{width:22,height:22,objectFit:"contain",flexShrink:0,opacity:0.55}} alt="summit.moon"/>
           <span style={{fontSize:14,fontWeight:400,color:"rgba(250,246,239,0.7)",fontFamily:C.serif,letterSpacing:"-0.01em",fontStyle:"italic"}}>summit<span style={{fontStyle:"normal",color:"rgba(201,168,76,0.7)",fontWeight:400}}>.</span>moon</span>
           <div style={{width:5,height:5,borderRadius:"50%",background:C.green,animation:"pulse 3s infinite",boxShadow:`0 0 5px ${C.green}`}}/>
         </div>
@@ -3207,7 +2247,6 @@ export default function SummitMoon() {
 
       {showNotifs&&<NotifPanel onClose={()=>setShowNotifs(false)}/>}
 
-      {/* Top 10 by volume bar */}
       <div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
         <div style={{display:"flex",alignItems:"stretch",minWidth:"max-content",padding:"0 16px"}}>
           {[...tokens].sort((a,b)=>(b.volRaw||0)-(a.volRaw||0)).slice(0,10).map((t,i)=>{
@@ -3232,7 +2271,6 @@ export default function SummitMoon() {
 
       <div style={{maxWidth:1100,margin:"0 auto",padding:"20px 20px 100px"}}>
 
-        {/* Top bar: slots + platform vol */}
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,gap:10}}>
           <div style={{display:"flex",gap:10,alignItems:"center"}}>
             <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:"6px 14px",display:"flex",gap:8,alignItems:"center"}}>
@@ -3243,10 +2281,10 @@ export default function SummitMoon() {
               <Label size={12} color={C.textTer}>Tokens</Label>
               <Label size={13} color={C.text} weight={600} mono>{tokens.length}</Label>
             </div>
-            <div style={{background:"rgba(48,209,88,0.08)",border:"1px solid rgba(48,209,88,0.2)",borderRadius:10,padding:"6px 14px",display:"flex",gap:6,alignItems:"center"}}>
-              <div style={{width:6,height:6,borderRadius:"50%",background:C.green,animation:"pulse 2s infinite",flexShrink:0}}/>
-              <Label size={12} color={C.textTer}>Holder pool/hr</Label>
-              <Label size={13} color={C.green} weight={700} mono>{fmtVol((platformVol*FEE_AIRDROP)/24)}</Label>
+            <div style={{background:"rgba(201,168,76,0.08)",border:"1px solid rgba(201,168,76,0.2)",borderRadius:10,padding:"6px 14px",display:"flex",gap:6,alignItems:"center"}}>
+              <div style={{width:6,height:6,borderRadius:"50%",background:C.gold,animation:"pulse 2s infinite",flexShrink:0}}/>
+              <Label size={12} color={C.textTer}>Airdrop pool/qtr</Label>
+              <Label size={13} color={C.gold} weight={700} mono>{fmtVol((platformVol*FEE_AIRDROP)*90)}</Label>
             </div>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:8,background:C.card,border:`1px solid ${slotData.open>0?C.border:C.redBd}`,borderRadius:10,padding:"6px 14px",cursor:"pointer"}} onClick={()=>setShowSlots(true)}>
@@ -3256,7 +2294,6 @@ export default function SummitMoon() {
           </div>
         </div>
 
-        {/* Swim lanes */}
         <TabFeed tokens={tokens} onSelect={setSelected}/>
 
       </div>
