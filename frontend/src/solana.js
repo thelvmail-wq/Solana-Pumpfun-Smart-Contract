@@ -5,6 +5,27 @@ import { Buffer } from 'buffer'
 export const PROGRAM_ID = new PublicKey('9cuFeeHRpr3yfjzeHLm84z95JPGaRgASwV4YY7PaMtkx')
 export const connection = new Connection('https://api.devnet.solana.com', 'confirmed')
 
+// ── Supabase config (read-only, anon key) ─────────
+const SUPABASE_URL = 'https://zhhplcgfhrtjyruvlqkx.supabase.co'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpoaHBsY2dmaHJ0anlydXZscWt4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxMDYwODksImV4cCI6MjA4ODY4MjA4OX0.vOBgtyishBXd1eq45jehrynefKS6F1hqyhlZWNBdr8c'
+
+// Simple Supabase REST helper (no SDK needed in frontend)
+async function supabaseGet(table, params = '') {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      }
+    })
+    if (!res.ok) return []
+    return await res.json()
+  } catch (e) {
+    console.warn('supabaseGet error:', e.message)
+    return []
+  }
+}
+
 // Discriminators
 const DISCRIMINATORS = {
   add_liquidity: Buffer.from('b59d59438fb63448', 'hex'),
@@ -42,13 +63,55 @@ export async function fetchHolderCount(mintPubkey) {
   try {
     const mint = new PublicKey(mintPubkey)
     const result = await connection.getTokenLargestAccounts(mint)
-    // Count accounts with non-zero balance
     const holders = result.value.filter(a => a.uiAmount > 0).length
     return holders
   } catch (e) {
     console.warn('fetchHolderCount error:', e.message)
     return 0
   }
+}
+
+// ── Fetch candles from Supabase ───────────────────────────────
+// timeframe: '1m', '5m', '15m', '1h', '4h', '1d'
+// Returns array of { o, h, l, c, v, t } for the chart
+export async function fetchCandles(mintPubkey, timeframe = '5m', limit = 100) {
+  const data = await supabaseGet(
+    'candles',
+    `mint=eq.${mintPubkey}&timeframe=eq.${timeframe}&order=bucket_ts.desc&limit=${limit}`
+  )
+  // Reverse so oldest is first (chart expects left-to-right)
+  return data.reverse().map(c => ({
+    o: parseFloat(c.open),
+    h: parseFloat(c.high),
+    l: parseFloat(c.low),
+    c: parseFloat(c.close),
+    v: parseFloat(c.volume),
+    t: c.bucket_ts,
+  }))
+}
+
+// ── Fetch trade count + volume from Supabase ──────────────────
+export async function fetchTradeStats(mintPubkey) {
+  const data = await supabaseGet(
+    'token_stats',
+    `mint=eq.${mintPubkey}`
+  )
+  if (data.length > 0) {
+    return {
+      totalTrades: parseInt(data[0].total_trades) || 0,
+      totalSolVolume: parseFloat(data[0].total_sol_volume) || 0,
+      lastTradeAt: data[0].last_trade_at,
+    }
+  }
+  return { totalTrades: 0, totalSolVolume: 0, lastTradeAt: null }
+}
+
+// ── Fetch recent trades for a token ───────────────────────────
+export async function fetchRecentTrades(mintPubkey, limit = 50) {
+  return await supabaseGet(
+    'trades',
+    `mint=eq.${mintPubkey}&order=timestamp.desc&limit=${limit}`
+  )
 }
 
 // ── Swap instruction ──────────────────────────────────────────
@@ -71,13 +134,12 @@ export async function buildSwapTx(walletPubkey, mintPubkey, solAmount, isBuy) {
     { pubkey: poolTokenAcct,  isSigner: false, isWritable: true  },
     { pubkey: userTokenAcct,  isSigner: false, isWritable: true  },
     { pubkey: user,           isSigner: true,  isWritable: true  },
-    { pubkey: new PublicKey('SysvarRent111111111111111111111111111111111'), isSigner: false, isWritable: false }, // rent sysvar
+    { pubkey: new PublicKey('SysvarRent111111111111111111111111111111111'), isSigner: false, isWritable: false },
     { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
     { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
   ]
 
-  // data: discriminator(8) + amount(u64 LE) + style(u64 LE)
   const data = Buffer.alloc(8 + 8 + 8)
   DISCRIMINATORS.swap.copy(data, 0)
   data.writeBigUInt64LE(BigInt(Math.floor(solAmount * LAMPORTS_PER_SOL)), 8)
@@ -86,7 +148,6 @@ export async function buildSwapTx(walletPubkey, mintPubkey, solAmount, isBuy) {
   const ix = new TransactionInstruction({ keys, programId: PROGRAM_ID, data })
 
   const tx = new Transaction()
-  // Create user ATA if needed
   const acctInfo = await connection.getAccountInfo(userTokenAcct)
   if (!acctInfo) {
     tx.add(createAssociatedTokenAccountInstruction(user, userTokenAcct, user, mint))
@@ -142,7 +203,6 @@ export async function buildAddLiquidityTx(walletPubkey, mintPubkey, solAmount) {
 
 // ══════════════════════════════════════════════════════════════
 // create_token_registry — 4 ACCOUNTS ONLY
-// [token_registry, mint, creator, system_program]
 // ══════════════════════════════════════════════════════════════
 export async function buildCreateRegistryTx(creatorPubkey, mintPubkey, ticker, imageHashBuf, identityHashBuf) {
   const mint = new PublicKey(mintPubkey)
@@ -154,11 +214,9 @@ export async function buildCreateRegistryTx(creatorPubkey, mintPubkey, ticker, i
 
   const [tokenRegistry] = getTokenRegistryPDA(mint)
 
-  // ticker_raw: first 16 bytes of raw ticker string, null-padded
   const tickerRawBuf = Buffer.alloc(16)
   Buffer.from(ticker.trim().toUpperCase().slice(0, 16)).copy(tickerRawBuf)
 
-  // data: disc(8) + ticker_hash(32) + image_hash(32) + identity_hash(32) + ticker_raw(16) = 120
   const data = Buffer.alloc(120)
   DISCRIMINATORS.create_token_registry.copy(data, 0)
   tickerBuf.copy(data, 8)
@@ -166,7 +224,6 @@ export async function buildCreateRegistryTx(creatorPubkey, mintPubkey, ticker, i
   idHash.copy(data, 72)
   tickerRawBuf.copy(data, 104)
 
-  // *** CRITICAL: 4 accounts ONLY — sending 7 causes AccountNotSigner (3010) ***
   const ix = new TransactionInstruction({
     keys: [
       { pubkey: tokenRegistry, isSigner: false, isWritable: true  },
@@ -187,9 +244,7 @@ export async function buildCreateRegistryTx(creatorPubkey, mintPubkey, ticker, i
 }
 
 // ══════════════════════════════════════════════════════════════
-// claim_locks — SEPARATE instruction, 6 accounts
-// [token_registry, ticker_lock, image_lock, identity_lock, creator, system_program]
-// Args: [ticker_hash(32), image_hash(32), identity_hash(32)] = 96 bytes after disc
+// claim_locks — 6 accounts
 // ══════════════════════════════════════════════════════════════
 export async function buildClaimLocksTx(creatorPubkey, mintPubkey, tickerBuf, imgHashBuf, idHashBuf) {
   const mint = new PublicKey(mintPubkey)
@@ -200,7 +255,6 @@ export async function buildClaimLocksTx(creatorPubkey, mintPubkey, tickerBuf, im
   const [imageLock] = PublicKey.findProgramAddressSync([Buffer.from('image_lock'), imgHashBuf], PROGRAM_ID)
   const [identityLock] = PublicKey.findProgramAddressSync([Buffer.from('identity_lock'), idHashBuf], PROGRAM_ID)
 
-  // data: disc(8) + ticker_hash(32) + image_hash(32) + identity_hash(32) = 104
   const data = Buffer.alloc(104)
   DISCRIMINATORS.claim_locks.copy(data, 0)
   tickerBuf.copy(data, 8)
@@ -328,18 +382,19 @@ export async function fetchPoolData(mintPubkey) {
   }
 }
 
-// Fetch all tokens with real pool stats + holder count
+// Fetch all tokens with real pool stats + holder count + trade stats
 export async function fetchAllTokensWithPools() {
   const tokens = await fetchDeployedTokens()
   const enriched = await Promise.all(tokens.map(async (t) => {
     const pool = await fetchPoolData(t.mint)
     if (pool) {
-      // Fetch real holder count
       const holders = await fetchHolderCount(t.mint)
+      const stats = await fetchTradeStats(t.mint)
 
-      const v = pool.mcap > 1e6 ? "$"+(pool.mcap/1e6).toFixed(1)+"M" : pool.mcap > 1e3 ? "$"+(pool.mcap/1e3).toFixed(0)+"K" : "$"+pool.mcap
+      const solPrice = 180
+      const volUsd = stats.totalSolVolume * solPrice
+      const v = volUsd > 1e6 ? "$"+(volUsd/1e6).toFixed(1)+"M" : volUsd > 1e3 ? "$"+(volUsd/1e3).toFixed(0)+"K" : "$"+Math.round(volUsd)
 
-      // Use pool launchTs for age calculations (more accurate than registry createdAt)
       const nowSec = Math.floor(Date.now() / 1000)
       const ageSec = nowSec - pool.launchTs
       const ageDays = Math.max(0, Math.floor(ageSec / 86400))
@@ -354,12 +409,14 @@ export async function fetchAllTokensWithPools() {
         prog: pool.prog,
         hasPool: true,
         vol: v,
+        volRaw: volUsd,
         pricePerToken: pool.pricePerToken,
         solReserve: pool.solReserve,
         tokenReserve: pool.tokenReserve,
         airdropPool: pool.airdropPool,
         launchTs: pool.launchTs,
         holders: holders,
+        txs: stats.totalTrades,
         age: ageDays,
         elapsed: ageMins,
         minsAgo: ageMins,
