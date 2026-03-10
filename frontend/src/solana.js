@@ -52,7 +52,7 @@ export async function buildSwapTx(walletPubkey, mintPubkey, solAmount, isBuy) {
   const keys = [
     { pubkey: dexConfig,      isSigner: false, isWritable: true  },
     { pubkey: pool,           isSigner: false, isWritable: true  },
-    { pubkey: global,         isSigner: false, isWritable: false },
+    { pubkey: global,         isSigner: false, isWritable: true  },
     { pubkey: mint,           isSigner: false, isWritable: true },
     { pubkey: poolTokenAcct,  isSigner: false, isWritable: true  },
     { pubkey: userTokenAcct,  isSigner: false, isWritable: true  },
