@@ -1368,7 +1368,7 @@ function DexBadge({sym}) {
 // ===== FULL TOKEN PAGE =====
 
 function TokenPage({t,onClose,connected,onConnect}) {
-  t={...t,txs:t.txs||0,vol:t.vol||"$0",volRaw:t.volRaw||0,holders:t.holders||0,prog:t.prog||0,age:t.age||0,raisedSOL:t.raisedSOL||0,raisedSOLMax:t.raisedSOLMax||85,elapsed:t.elapsed||0,mcap:t.mcap||0,chg:t.chg||0,bondingFull:t.bondingFull||false,graduated:t.graduated||false,topicLocked:t.topicLocked||false,sym:t.sym||"???",name:t.name||t.sym||"Unknown",desc:t.desc||"",minsAgo:t.minsAgo||0,pi:t.pi||0};
+  t={...t,txs:t.txs||0,vol:t.vol||"$0",volRaw:t.volRaw||0,holders:t.holders||0,prog:t.prog||0,age:t.age||0,raisedSOL:t.raisedSOL||0,raisedSOLMax:t.raisedSOLMax||85,elapsed:t.elapsed||0,mcap:t.mcap||100000,chg:t.chg||0,bondingFull:t.bondingFull||false,graduated:t.graduated||false,topicLocked:t.topicLocked||false,sym:t.sym||"???",name:t.name||t.sym||"Unknown",desc:t.desc||"",minsAgo:t.minsAgo||0,pi:t.pi||0,mint:t.mint||t.id,mintAddress:t.mintAddress||t.mint||t.id};
   const [range,setRange]=useState("1H");
   const [rightTab,setRightTab]=useState("swap");
   const [candles]=useState(()=>genCandles(80,0.00004+Math.random()*0.0001));
