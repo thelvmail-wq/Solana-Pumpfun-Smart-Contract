@@ -2004,7 +2004,7 @@ function LaunchModal({onClose,slotData}) {
 // ===== NOTIFICATIONS =====
 
 function NotifPanel({onClose}) {
-  const [notifs,setNotifs]=useState(MOCK_NOTIFS);
+  const [notifs,setNotifs]=useState([]);
   return (
     <div style={{position:"fixed",inset:0,zIndex:200}} onClick={onClose}>
       <div style={{position:"absolute",top:58,right:16,width:300,background:C.sheet,border:`1px solid ${C.border}`,borderRadius:8,overflow:"hidden",boxShadow:"0 20px 60px rgba(0,0,0,0.6)",backdropFilter:"blur(20px)",animation:"scaleIn 0.18s ease"}} onClick={e=>e.stopPropagation()}>
@@ -3173,10 +3173,10 @@ export default function SummitMoon() {
   const [view,setView]=useState("feed");
   const [showNotifs,setShowNotifs]=useState(false);
   const [showSlots,setShowSlots]=useState(false);
-  const [tokens,setTokens]=useState(INIT_TOKENS);
+  const [tokens,setTokens]=useState([]);
   useEffect(()=>{fetchAllTokensWithPools().then(onChain=>{if(onChain.length>0){setTokens(onChain);}}).catch(e=>console.error("fetch tokens error:",e));},[]);
-  const [notifs]=useState(MOCK_NOTIFS);
-  const [platformVol,setPlatformVol]=useState(()=>INIT_TOKENS.reduce((a,t)=>a+(t.volRaw||0),0));
+  const [notifs]=useState([]);
+  const [platformVol,setPlatformVol]=useState(0);
 
 
 
