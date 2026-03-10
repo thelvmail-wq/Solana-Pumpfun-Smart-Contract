@@ -324,7 +324,7 @@ export async function fetchAllTokensWithPools() {
     const pool = await fetchPoolData(t.mint)
     if (pool) {
       const v = pool.mcap > 1e6 ? "$"+(pool.mcap/1e6).toFixed(1)+"M" : pool.mcap > 1e3 ? "$"+(pool.mcap/1e3).toFixed(0)+"K" : "$"+pool.mcap
-      return { ...t, mcap: pool.mcap, raisedSOL: pool.raisedSOL, bondingFull: pool.bondingFull, graduated: pool.graduated, prog: pool.prog, hasPool: true, vol: v }
+      return { ...t, mcap: pool.mcap, raisedSOL: pool.raisedSOL, bondingFull: pool.bondingFull, graduated: pool.graduated, prog: pool.prog, hasPool: true, vol: v, pricePerToken: pool.pricePerToken, solReserve: pool.solReserve, tokenReserve: pool.tokenReserve, airdropPool: pool.airdropPool, launchTs: pool.launchTs, age: Math.max(0, Math.floor((Date.now()/1000 - pool.launchTs) / 86400)) }
     }
     return { ...t, hasPool: false }
   }))
