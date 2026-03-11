@@ -82,11 +82,24 @@ async function fetchAllMints() {
       const tickerRaw = data.slice(136, 152);
       const tickerEnd = tickerRaw.indexOf(0);
       const ticker = Buffer.from(tickerRaw.slice(0, tickerEnd === -1 ? 16 : tickerEnd)).toString().trim();
+      const [poolPDA] = getPoolPDA(mint);
+      
+      // Try to get pool reserves for price fallback
+      let reserveOne = 0, reserveTwo = 0;
+      try {
+        const poolAcct = await connection.getAccountInfo(poolPDA);
+        if (poolAcct && poolAcct.data.length >= 96) {
+          reserveOne = Number(poolAcct.data.readBigUInt64LE(80));
+          reserveTwo = Number(poolAcct.data.readBigUInt64LE(88));
+        }
+      } catch (e) { /* skip */ }
       
       mints.push({
         mint: mint.toBase58(),
         ticker: ticker || 'UNKNOWN',
-        poolPDA: getPoolPDA(mint)[0].toBase58(),
+        poolPDA: poolPDA.toBase58(),
+        reserveOne,
+        reserveTwo,
       });
     } catch (e) {
       // skip
@@ -106,33 +119,32 @@ function parseSwapFromTx(tx, mintInfo) {
   const programIdx = accountKeys.findIndex(k => k.toBase58() === PROGRAM_ID.toBase58());
   if (programIdx === -1) return null;
   
-  // Find the instruction that uses our program
-  const instructions = msg.instructions || msg.compiledInstructions || [];
-  const ourIx = instructions.find(ix => {
-    const pIdx = ix.programIdIndex !== undefined ? ix.programIdIndex : ix.programId;
-    if (typeof pIdx === 'number') return pIdx === programIdx;
-    return pIdx?.toBase58() === PROGRAM_ID.toBase58();
-  });
+  // Check ALL instructions for one with our program AND swap discriminator
+  const instructions = msg.compiledInstructions || msg.instructions || [];
+  let swapIx = null;
+  let dataBuf = null;
   
-  if (!ourIx) return null;
-  
-  // Check discriminator
-  const ixData = ourIx.data;
-  let dataBuf;
-  if (Buffer.isBuffer(ixData)) {
-    dataBuf = ixData;
-  } else if (typeof ixData === 'string') {
-    // base58 encoded
-    dataBuf = Buffer.from(ixData, 'base64');
-  } else if (ixData instanceof Uint8Array) {
-    dataBuf = Buffer.from(ixData);
-  } else {
-    return null;
+  for (const ix of instructions) {
+    const pIdx = ix.programIdIndex !== undefined ? ix.programIdIndex : -1;
+    if (pIdx !== programIdx) continue;
+    
+    // Decode data
+    let buf;
+    if (Buffer.isBuffer(ix.data)) buf = ix.data;
+    else if (ix.data instanceof Uint8Array) buf = Buffer.from(ix.data);
+    else if (typeof ix.data === 'string') buf = Buffer.from(ix.data, 'base58');
+    else continue;
+    
+    if (buf.length < 24) continue;
+    const disc = buf.slice(0, 8).toString('hex');
+    if (disc === SWAP_DISC) {
+      swapIx = ix;
+      dataBuf = buf;
+      break;
+    }
   }
   
-  if (dataBuf.length < 24) return null;
-  const disc = dataBuf.slice(0, 8).toString('hex');
-  if (disc !== SWAP_DISC) return null;
+  if (!swapIx || !dataBuf) return null;
   
   // Parse: disc(8) + amount(u64 LE, 8) + style(u64 LE, 8)
   const amount = Number(dataBuf.readBigUInt64LE(8));
@@ -144,40 +156,65 @@ function parseSwapFromTx(tx, mintInfo) {
   const signerKey = accountKeys[0]?.toBase58();
   
   // Get the mint from account keys — it's index 3 in the swap accounts
-  const ixAccounts = ourIx.accounts || ourIx.accountKeyIndexes || [];
+  const ixAccounts = swapIx.accounts || swapIx.accountKeyIndexes || [];
   const mintIdx = ixAccounts[3]; // mint is 4th account (index 3)
   const mintKey = typeof mintIdx === 'number' ? accountKeys[mintIdx]?.toBase58() : mintIdx?.toBase58();
   
   if (!mintKey) return null;
   
-  // Calculate price from pre/post token balances
+  // Calculate price from pre/post SOL and token balance changes
   let tokenAmount = 0;
+  let solChanged = 0;
   let price = 0;
   
+  // Get SOL change from pre/post balances (most reliable)
+  if (tx.meta.preBalances && tx.meta.postBalances) {
+    // Signer is index 0 — their SOL change is the trade amount
+    const preSol = tx.meta.preBalances[0] / 1e9;
+    const postSol = tx.meta.postBalances[0] / 1e9;
+    solChanged = Math.abs(postSol - preSol);
+    // Subtract estimated tx fee (~0.000005 SOL)
+    if (solChanged > 0.00001) solChanged = Math.max(0, solChanged - 0.000005);
+  }
+  
+  // Get token change from pre/post token balances
   if (tx.meta.preTokenBalances && tx.meta.postTokenBalances) {
-    // Find the user's token balance change
     for (const post of tx.meta.postTokenBalances) {
+      if (post.mint !== mintKey) continue;
       const pre = tx.meta.preTokenBalances.find(
-        p => p.accountIndex === post.accountIndex
+        p => p.accountIndex === post.accountIndex && p.mint === mintKey
       );
-      if (pre && post.mint === mintKey) {
-        const preAmt = parseFloat(pre.uiTokenAmount?.uiAmountString || '0');
-        const postAmt = parseFloat(post.uiTokenAmount?.uiAmountString || '0');
-        const diff = Math.abs(postAmt - preAmt);
-        if (diff > 0) {
-          tokenAmount = diff;
-          price = tokenAmount > 0 ? solAmount / tokenAmount : 0;
+      const preAmt = pre ? parseFloat(pre.uiTokenAmount?.uiAmountString || '0') : 0;
+      const postAmt = parseFloat(post.uiTokenAmount?.uiAmountString || '0');
+      const diff = Math.abs(postAmt - preAmt);
+      if (diff > tokenAmount) tokenAmount = diff;
+    }
+    
+    // Also check for new accounts (pre might not exist)
+    if (tokenAmount === 0) {
+      for (const post of tx.meta.postTokenBalances) {
+        if (post.mint !== mintKey) continue;
+        const hasPre = tx.meta.preTokenBalances.some(p => p.accountIndex === post.accountIndex);
+        if (!hasPre) {
+          const amt = parseFloat(post.uiTokenAmount?.uiAmountString || '0');
+          if (amt > tokenAmount) tokenAmount = amt;
         }
       }
     }
   }
   
-  // Fallback price estimate if token balances didn't work
-  if (price === 0 && solAmount > 0) {
-    // Use pool reserves from mintInfo if available
+  // Price = SOL per token
+  const effectiveSol = solChanged > 0 ? solChanged : solAmount;
+  if (tokenAmount > 0 && effectiveSol > 0) {
+    price = effectiveSol / tokenAmount;
+  }
+  
+  // Fallback: use pool reserves to estimate price
+  if (price === 0 || price > 1) {
     const info = mintInfo.find(m => m.mint === mintKey);
-    if (info) {
-      price = solAmount / (solAmount * 1e9 / 0.001); // rough estimate
+    if (info && info.reserveOne > 0 && info.reserveTwo > 0) {
+      // reserveTwo = SOL lamports, reserveOne = token raw
+      price = (info.reserveTwo / 1e9) / (info.reserveOne / 1e9);
     }
   }
   
@@ -269,34 +306,55 @@ async function processPool(mintInfo) {
   const { mint, poolPDA, ticker } = mintInfo;
   
   try {
-    const lastSig = await getLastSig(mint);
-    
-    // Fetch recent signatures for the pool PDA
-    const opts = { limit: 50 };
-    if (lastSig) opts.until = lastSig;
-    
+    // Fetch recent signatures for the pool PDA — always fetch all, duplicates handled by DB unique constraint
     const sigs = await connection.getSignaturesForAddress(
       new PublicKey(poolPDA),
-      opts
+      { limit: 50 }
     );
     
     if (sigs.length === 0) return 0;
+    
+    console.log(`  ${ticker}: checking ${sigs.length} txs on pool ${poolPDA.slice(0,8)}...`);
     
     let newTrades = 0;
     
     // Process oldest first
     for (const sigInfo of sigs.reverse()) {
-      if (sigInfo.err) continue;
+      if (sigInfo.err) {
+        console.log(`    skip ${sigInfo.signature.slice(0,8)}... (failed tx)`);
+        continue;
+      }
       
       try {
         const tx = await connection.getTransaction(sigInfo.signature, {
           maxSupportedTransactionVersion: 0,
         });
         
-        if (!tx) continue;
+        if (!tx) {
+          console.log(`    skip ${sigInfo.signature.slice(0,8)}... (null tx)`);
+          continue;
+        }
         
         const trade = parseSwapFromTx(tx, [mintInfo]);
-        if (!trade) continue;
+        if (!trade) {
+          // Log what instruction this was
+          const msg = tx.transaction.message;
+          const accountKeys = msg.accountKeys || msg.staticAccountKeys || [];
+          const instructions = msg.compiledInstructions || msg.instructions || [];
+          for (const ix of instructions) {
+            const pIdx = ix.programIdIndex !== undefined ? ix.programIdIndex : -1;
+            const progKey = typeof pIdx === 'number' && accountKeys[pIdx] ? accountKeys[pIdx].toBase58() : 'unknown';
+            if (progKey === PROGRAM_ID.toBase58()) {
+              let dataBuf;
+              if (Buffer.isBuffer(ix.data)) dataBuf = ix.data;
+              else if (ix.data instanceof Uint8Array) dataBuf = Buffer.from(ix.data);
+              else if (typeof ix.data === 'string') dataBuf = Buffer.from(ix.data, 'base58');
+              const disc = dataBuf ? dataBuf.slice(0,8).toString('hex') : 'no-data';
+              console.log(`    skip ${sigInfo.signature.slice(0,8)}... (disc: ${disc}, not swap ${SWAP_DISC})`);
+            }
+          }
+          continue;
+        }
         
         const timestamp = new Date((tx.blockTime || Math.floor(Date.now()/1000)) * 1000).toISOString();
         
@@ -316,7 +374,7 @@ async function processPool(mintInfo) {
           });
         
         if (error) {
-          if (error.code === '23505') continue; // duplicate, skip
+          if (error.code === '23505') continue; // duplicate, silent skip
           console.error(`  Insert error: ${error.message}`);
           continue;
         }
@@ -328,7 +386,7 @@ async function processPool(mintInfo) {
         }
         
         newTrades++;
-        console.log(`  ${trade.side.toUpperCase()} ${trade.sol_amount.toFixed(4)} SOL | ${ticker} | ${sigInfo.signature.slice(0,8)}...`);
+        console.log(`  ✅ ${trade.side.toUpperCase()} ${trade.sol_amount.toFixed(4)} SOL | ${ticker} | ${sigInfo.signature.slice(0,8)}...`);
         
       } catch (txErr) {
         console.error(`  TX parse error: ${txErr.message}`);
