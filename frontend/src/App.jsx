@@ -2295,7 +2295,20 @@ export default function SummitMoon() {
   const [showNotifs,setShowNotifs]=useState(false);
   const [showSlots,setShowSlots]=useState(false);
   const [tokens,setTokens]=useState([]);
-  useEffect(()=>{fetchAllTokensWithPools().then(onChain=>{if(onChain.length>0){setTokens(onChain);}}).catch(e=>console.error("fetch tokens error:",e));},[]);
+
+  // Fetch tokens on load + poll every 15s for new tokens and updated data
+  useEffect(()=>{
+    const load = () => fetchAllTokensWithPools().then(onChain=>{
+      if(onChain.length>0){
+        setTokens(onChain);
+        setPlatformVol(onChain.reduce((a,t)=>a+(t.volRaw||0),0));
+      }
+    }).catch(e=>console.error("fetch tokens error:",e));
+    load();
+    const interval = setInterval(load, 5000);
+    return () => clearInterval(interval);
+  },[]);
+
   const [notifs]=useState([]);
   const [platformVol,setPlatformVol]=useState(0);
 
