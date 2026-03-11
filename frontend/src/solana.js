@@ -3,7 +3,7 @@ import { getAssociatedTokenAddress, createAssociatedTokenAccountInstruction, TOK
 import { Buffer } from 'buffer'
 
 export const PROGRAM_ID = new PublicKey('9cuFeeHRpr3yfjzeHLm84z95JPGaRgASwV4YY7PaMtkx')
-export const connection = new Connection('https://api.devnet.solana.com', 'confirmed')
+export const connection = new Connection('https://devnet.helius-rpc.com/?api-key=058c5cbb-e6d6-4f09-a110-aaa298b485c1', 'confirmed')
 
 // ── Supabase config (read-only, anon key) ─────────
 const SUPABASE_URL = 'https://zhhplcgfhrtjyruvlqkx.supabase.co'
