@@ -2914,126 +2914,133 @@ function SlotPanel({slotData, platformVol, tokens, onClose, onLaunch}) {
 
 // ===== TAB FEED =====
 
-function FeedCard({t, onClick}) {
-  t={...t,txs:t.txs||0,vol:t.vol||"$0",volRaw:t.volRaw||0,holders:t.holders||0,raisedSOL:t.raisedSOL||0,mcap:t.mcap||0,chg:t.chg||0,bondingFull:t.bondingFull||false,graduated:t.graduated||false,sym:t.sym||"???",name:t.name||t.sym||"Unknown",pi:t.pi||0,minsAgo:t.minsAgo||0,elapsed:t.elapsed||0};
-  const p = PALETTES[t.pi%8], up = t.chg>0, as = getAS(t);
-  const solPct = Math.min(100,((t.raisedSOL||0)/85)*100);
-  const barCol = t.bondingFull?C.green:(t.raisedSOL||0)>=60?C.purple:p.a;
-  const isNew = (t.elapsed||999) < 10;
-
-  return (
-    <div onClick={()=>onClick(t)} style={{
-      background:C.card,border:`1px solid ${C.border}`,borderRadius:12,
-      cursor:"pointer",transition:"all 0.15s",overflow:"hidden",position:"relative",
-    }}
-      onMouseEnter={e=>{e.currentTarget.style.borderColor=C.borderMd;e.currentTarget.style.transform="translateY(-1px)";}}
-      onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.transform="none";}}>
-
-      {/* Top accent line */}
-      <div style={{height:2,background:`linear-gradient(90deg,${p.a},${p.b})`}}/>
-
-      <div style={{padding:"14px 16px"}}>
-        {/* Header: avatar + name + age badge */}
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
-          <Avatar sym={t.sym} pi={t.pi} size={38}/>
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{display:"flex",alignItems:"center",gap:6}}>
-              <Label size={15} color={C.text} weight={700} style={{letterSpacing:"-0.02em"}}>{t.sym}</Label>
-              {isNew&&<span style={{fontSize:8,fontWeight:700,color:C.green,background:"rgba(34,197,94,0.12)",border:"1px solid rgba(34,197,94,0.25)",borderRadius:3,padding:"1px 5px",letterSpacing:"0.04em"}}>NEW</span>}
-              {t.graduated&&<span style={{fontSize:8,fontWeight:700,color:C.raydium,background:C.raydiumBg,border:`1px solid ${C.raydiumBd}`,borderRadius:3,padding:"1px 5px"}}>GRAD</span>}
-            </div>
-            <Label size={10} color={C.textQuat}>{fmtAge(t.age, t.elapsed)} ago</Label>
-          </div>
-          <div style={{textAlign:"right"}}>
-            <Label size={16} color={C.text} weight={700} mono style={{display:"block"}}>{fmt(t.mcap)}</Label>
-            <Label size={10} color={up?C.green:C.red} weight={600} mono>{up?"+":""}{t.chg.toFixed(1)}%</Label>
-          </div>
-        </div>
-
-        {/* Stats row */}
-        <div style={{display:"flex",gap:6,marginBottom:10}}>
-          <div style={{flex:1,background:"rgba(255,255,255,0.03)",borderRadius:6,padding:"6px 8px",textAlign:"center"}}>
-            <Label size={8} color={C.textQuat} style={{display:"block",textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:2}}>Vol</Label>
-            <Label size={12} color={C.text} weight={600} mono>{t.vol}</Label>
-          </div>
-          <div style={{flex:1,background:"rgba(255,255,255,0.03)",borderRadius:6,padding:"6px 8px",textAlign:"center"}}>
-            <Label size={8} color={C.textQuat} style={{display:"block",textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:2}}>Txns</Label>
-            <Label size={12} color={C.text} weight={600} mono>{t.txs}</Label>
-          </div>
-          <div style={{flex:1,background:"rgba(255,255,255,0.03)",borderRadius:6,padding:"6px 8px",textAlign:"center"}}>
-            <Label size={8} color={C.textQuat} style={{display:"block",textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:2}}>Holders</Label>
-            <Label size={12} color={C.text} weight={600} mono>{t.holders > 0 ? t.holders : "—"}</Label>
-          </div>
-        </div>
-
-        {/* Bonding progress */}
-        {t.graduated?(
-          <div style={{display:"flex",alignItems:"center",gap:6,padding:"6px 10px",background:C.raydiumBg,border:`1px solid ${C.raydiumBd}`,borderRadius:6}}>
-            <div style={{width:5,height:5,borderRadius:"50%",background:C.raydium}}/>
-            <Label size={10} color={C.raydium} weight={600}>Graduated — on Raydium</Label>
-          </div>
-        ):(
-          <div>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-              <Label size={9} color={C.textQuat}>{(t.raisedSOL||0).toFixed(1)} / 85 SOL</Label>
-              <Label size={9} color={barCol} weight={600}>{t.bondingFull?"Bonded":`${(85-(t.raisedSOL||0)).toFixed(1)} left`}</Label>
-            </div>
-            <div style={{height:4,background:"rgba(255,255,255,0.06)",borderRadius:99,overflow:"hidden"}}>
-              <div style={{width:`${Math.max(solPct,1)}%`,height:"100%",background:barCol,borderRadius:99,transition:"width 0.8s ease"}}/>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function TabFeed({tokens, onSelect}) {
+function ScannerFeed({tokens, onSelect}) {
   const [tab, setTab] = useState("new");
+  const [sortKey, setSortKey] = useState("age");
+  const [sortDir, setSortDir] = useState("desc");
 
   const tabs = [
-    {id:"new",    label:"New Pairs",   color:C.blue,   tokens: [...tokens].filter(t=>t.hasPool!==false).sort((a,b)=>(a.createdAt||a.elapsed||0)-(b.createdAt||b.elapsed||0)).reverse()},
-    {id:"hot",    label:"Hot",         color:C.accent, tokens: [...tokens].filter(t=>(t.volRaw||0)>0||t.chg>0).sort((a,b)=>(b.volRaw||0)-(a.volRaw||0))},
-    {id:"near",   label:"Near Grad",   color:C.purple, tokens: [...tokens].filter(t=>(t.raisedSOL||0)>=50&&!t.bondingFull).sort((a,b)=>(b.raisedSOL||0)-(a.raisedSOL||0))},
-    {id:"bonded", label:"Bonded",      color:C.gold,   tokens: [...tokens].filter(t=>t.bondingFull&&!t.graduated).sort((a,b)=>(b.volRaw||0)-(a.volRaw||0))},
-    {id:"grad",   label:"Graduated",   color:C.raydium,tokens: [...tokens].filter(t=>t.graduated).sort((a,b)=>(b.volRaw||0)-(a.volRaw||0))},
+    {id:"new",    label:"New",        color:C.blue,   tokens: [...tokens].filter(t=>t.hasPool!==false).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0))},
+    {id:"hot",    label:"Hot",        color:C.accent, tokens: [...tokens].filter(t=>(t.volRaw||0)>0).sort((a,b)=>(b.volRaw||0)-(a.volRaw||0))},
+    {id:"near",   label:"Near Grad",  color:C.purple, tokens: [...tokens].filter(t=>(t.raisedSOL||0)>=50&&!t.bondingFull).sort((a,b)=>(b.raisedSOL||0)-(a.raisedSOL||0))},
+    {id:"bonded", label:"Bonded",     color:C.gold,   tokens: [...tokens].filter(t=>t.bondingFull&&!t.graduated)},
+    {id:"grad",   label:"Graduated",  color:C.raydium,tokens: [...tokens].filter(t=>t.graduated)},
   ];
 
   const active = tabs.find(t=>t.id===tab);
+  const handleSort = (key) => { if(sortKey===key) setSortDir(d=>d==="asc"?"desc":"asc"); else { setSortKey(key); setSortDir("desc"); }};
+  const sortedTokens = [...(active?.tokens||[])].sort((a,b)=>{
+    const m = sortDir==="asc"?1:-1;
+    if(sortKey==="mcap") return ((a.mcap||0)-(b.mcap||0))*m;
+    if(sortKey==="vol") return ((a.volRaw||0)-(b.volRaw||0))*m;
+    if(sortKey==="age") return ((a.createdAt||0)-(b.createdAt||0))*m;
+    if(sortKey==="prog") return ((a.raisedSOL||0)-(b.raisedSOL||0))*m;
+    return 0;
+  });
+
+  const SortHead = ({label, k, w, align}) => (
+    <div onClick={()=>handleSort(k)} style={{width:w,flexShrink:0,cursor:"pointer",textAlign:align||"left",userSelect:"none",display:"flex",alignItems:"center",gap:2,justifyContent:align==="right"?"flex-end":"flex-start"}}>
+      <Label size={9} color={sortKey===k?C.textSec:C.textQuat} weight={sortKey===k?600:400} style={{textTransform:"uppercase",letterSpacing:"0.06em"}}>{label}</Label>
+      {sortKey===k&&<span style={{fontSize:7,color:C.textTer}}>{sortDir==="desc"?"▼":"▲"}</span>}
+    </div>
+  );
 
   return (
     <div>
-      {/* Tab bar */}
-      <div style={{display:"flex",gap:4,marginBottom:16,flexWrap:"wrap"}}>
-        {tabs.map(t=>{
-          const isActive = t.id===tab;
-          return (
-            <button key={t.id} onClick={()=>setTab(t.id)} style={{
-              height:34,padding:"0 14px",background:isActive?`${t.color}15`:"transparent",
-              border:`1px solid ${isActive?t.color+"40":C.border}`,borderRadius:8,
-              cursor:"pointer",display:"flex",alignItems:"center",gap:6,transition:"all 0.15s",
-            }}
-              onMouseEnter={e=>{if(!isActive){e.currentTarget.style.background="rgba(255,255,255,0.04)";e.currentTarget.style.borderColor=C.borderMd;}}}
-              onMouseLeave={e=>{if(!isActive){e.currentTarget.style.background="transparent";e.currentTarget.style.borderColor=C.border;}}}>
-              <Label size={12} color={isActive?t.color:C.textTer} weight={isActive?700:500}>{t.label}</Label>
-              <span style={{fontSize:10,fontWeight:600,color:isActive?t.color:C.textQuat,background:isActive?`${t.color}20`:"rgba(255,255,255,0.05)",padding:"1px 6px",borderRadius:10}}>{t.tokens.length}</span>
-            </button>
-          );
-        })}
+      {/* Tabs — compact pills */}
+      <div style={{display:"flex",gap:3,marginBottom:8,alignItems:"center"}}>
+        {tabs.map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)} style={{
+            height:26,padding:"0 10px",background:tab===t.id?`${t.color}18`:"transparent",
+            border:`1px solid ${tab===t.id?t.color+"44":"transparent"}`,borderRadius:5,
+            cursor:"pointer",display:"flex",alignItems:"center",gap:4,transition:"all 0.1s",
+          }}>
+            <span style={{fontSize:11,fontWeight:tab===t.id?700:400,color:tab===t.id?t.color:C.textQuat}}>{t.label}</span>
+            <span style={{fontSize:9,fontWeight:600,color:tab===t.id?t.color:C.textQuat,opacity:0.7}}>{t.tokens.length}</span>
+          </button>
+        ))}
       </div>
 
-      {/* Card grid */}
-      {active.tokens.length>0?(
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))",gap:10}}>
-          {active.tokens.map((t)=>(
-            <FeedCard key={t.id} t={t} onClick={onSelect}/>
-          ))}
+      {/* Scanner table */}
+      <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:6,overflow:"hidden"}}>
+        {/* Header */}
+        <div style={{display:"flex",alignItems:"center",padding:"6px 10px",gap:0,background:"rgba(255,255,255,0.02)",borderBottom:`1px solid rgba(255,255,255,0.05)`}}>
+          <div style={{width:32,flexShrink:0}}/>
+          <div style={{width:110,flexShrink:0}}><Label size={9} color={C.textQuat} style={{textTransform:"uppercase",letterSpacing:"0.06em"}}>Token</Label></div>
+          <SortHead label="Age" k="age" w={48}/>
+          <SortHead label="MC" k="mcap" w={70} align="right"/>
+          <SortHead label="Vol" k="vol" w={60} align="right"/>
+          <div className="feed-hide-mobile" style={{width:40,flexShrink:0,textAlign:"right"}}><Label size={9} color={C.textQuat} style={{textTransform:"uppercase",letterSpacing:"0.06em"}}>Txs</Label></div>
+          <div className="feed-hide-mobile" style={{width:48,flexShrink:0,textAlign:"right"}}><Label size={9} color={C.textQuat} style={{textTransform:"uppercase",letterSpacing:"0.06em"}}>Hdrs</Label></div>
+          <SortHead label="Progress" k="prog" w={100} align="right"/>
         </div>
-      ):(
-        <div style={{padding:"60px 24px",textAlign:"center",background:C.card,border:`1px solid ${C.border}`,borderRadius:12}}>
-          <Label size={14} color={C.textQuat}>No tokens in this category yet</Label>
-        </div>
-      )}
+
+        {/* Rows */}
+        {sortedTokens.length>0 ? sortedTokens.map((t) => {
+          const p = PALETTES[t.pi%8];
+          const up = (t.chg||0) > 0;
+          const solPct = Math.min(100,((t.raisedSOL||0)/85)*100);
+          const barCol = (t.bondingFull)?C.green:(t.raisedSOL||0)>=60?C.purple:p.a;
+          const isNew = (t.elapsed||999) < 10;
+          return (
+            <div key={t.id} onClick={()=>onSelect(t)} style={{
+              display:"flex",alignItems:"center",padding:"5px 10px",gap:0,
+              borderBottom:`1px solid rgba(255,255,255,0.03)`,cursor:"pointer",
+              transition:"background 0.08s",height:38,
+            }}
+              onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.03)"}
+              onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+              {/* Avatar */}
+              <div style={{width:32,flexShrink:0}}>
+                <Avatar sym={t.sym} pi={t.pi} size={24}/>
+              </div>
+              {/* Ticker */}
+              <div style={{width:110,flexShrink:0,display:"flex",alignItems:"center",gap:4}}>
+                <Label size={12} color={C.text} weight={700} style={{letterSpacing:"-0.02em"}}>{t.sym}</Label>
+                {isNew&&<span style={{fontSize:7,fontWeight:800,color:C.green,background:"rgba(34,197,94,0.15)",borderRadius:2,padding:"0px 3px",lineHeight:"14px"}}>NEW</span>}
+                {t.graduated&&<span style={{fontSize:7,fontWeight:800,color:C.raydium,background:`${C.raydium}20`,borderRadius:2,padding:"0px 3px",lineHeight:"14px"}}>GRAD</span>}
+              </div>
+              {/* Age */}
+              <div style={{width:48,flexShrink:0}}>
+                <Label size={10} color={C.textTer} mono>{fmtAge(t.age, t.elapsed)}</Label>
+              </div>
+              {/* MC */}
+              <div style={{width:70,flexShrink:0,textAlign:"right"}}>
+                <Label size={11} color={C.text} weight={600} mono>{fmt(t.mcap||0)}</Label>
+              </div>
+              {/* Vol */}
+              <div style={{width:60,flexShrink:0,textAlign:"right"}}>
+                <Label size={10} color={(t.volRaw||0)>0?C.textSec:C.textQuat} mono>{t.vol||"$0"}</Label>
+              </div>
+              {/* Txs */}
+              <div className="feed-hide-mobile" style={{width:40,flexShrink:0,textAlign:"right"}}>
+                <Label size={10} color={C.textQuat} mono>{t.txs||0}</Label>
+              </div>
+              {/* Holders */}
+              <div className="feed-hide-mobile" style={{width:48,flexShrink:0,textAlign:"right"}}>
+                <Label size={10} color={C.textQuat} mono>{(t.holders||0)>0?t.holders:"—"}</Label>
+              </div>
+              {/* Progress bar */}
+              <div style={{width:100,flexShrink:0,paddingLeft:12}}>
+                {t.graduated?(
+                  <span style={{fontSize:9,fontWeight:700,color:C.raydium}}>ON RAYDIUM</span>
+                ):(
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <div style={{flex:1,height:3,background:"rgba(255,255,255,0.06)",borderRadius:99,overflow:"hidden"}}>
+                      <div style={{width:`${Math.max(solPct,2)}%`,height:"100%",background:barCol,borderRadius:99}}/>
+                    </div>
+                    <Label size={9} color={barCol} mono weight={600}>{Math.round(solPct)}%</Label>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        }) : (
+          <div style={{padding:"32px",textAlign:"center"}}>
+            <Label size={12} color={C.textQuat}>No tokens in this category</Label>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -3133,72 +3140,28 @@ export default function SummitMoon() {
 
       {showNotifs&&<NotifPanel onClose={()=>setShowNotifs(false)}/>}
 
-      <div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
-        <div style={{display:"flex",alignItems:"stretch",minWidth:"max-content",padding:"0 16px"}}>
-          {[...tokens].sort((a,b)=>(b.volRaw||0)-(a.volRaw||0)).slice(0,10).map((t,i)=>{
-            const up=t.chg>0;
-            const rankCol = i===0?C.gold:i<3?"rgba(255,255,255,0.55)":C.textQuat;
-            return (
-              <div key={t.id} onClick={()=>setSelected(t)}
-                style={{display:"flex",alignItems:"center",gap:8,padding:"0 14px",height:44,borderRight:`1px solid ${C.border}`,cursor:"pointer",flexShrink:0,transition:"background 0.12s"}}
-                onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.04)"}
-                onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                <span style={{fontSize:11,fontWeight:700,color:rankCol,fontFamily:"ui-monospace,monospace",width:14,flexShrink:0}}>{i+1}</span>
-                <Avatar sym={t.sym} pi={t.pi} size={22}/>
-                <span style={{fontSize:13,fontWeight:600,color:C.text,letterSpacing:"-0.01em"}}>{t.sym}</span>
-                <span style={{fontSize:12,fontWeight:500,color:C.textTer,fontFamily:"ui-monospace,monospace"}}>{t.vol}</span>
-                <span style={{fontSize:11,fontWeight:500,color:up?C.green:C.red,fontFamily:"ui-monospace,monospace"}}>{up?"+":""}{t.chg.toFixed(1)}%</span>
-                {i===0&&<div style={{width:5,height:5,borderRadius:"50%",background:C.gold,flexShrink:0}}/>}
-              </div>
-            );
-          })}
+      {/* Compact stats strip */}
+      <div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,padding:"0 16px",height:32,display:"flex",alignItems:"center",gap:16,fontSize:11,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+        <span style={{color:C.textQuat,flexShrink:0}}>VOL</span>
+        <span style={{color:C.gold,fontWeight:700,fontFamily:C.mono,flexShrink:0}}>{fmtVol(platformVol)}</span>
+        <span style={{color:C.border,flexShrink:0}}>│</span>
+        <span style={{color:C.textQuat,flexShrink:0}}>TOKENS</span>
+        <span style={{color:C.text,fontWeight:600,fontFamily:C.mono,flexShrink:0}}>{tokens.filter(t=>t.hasPool!==false).length}</span>
+        <span style={{color:C.border,flexShrink:0}}>│</span>
+        <span style={{color:C.textQuat,flexShrink:0}}>AIRDROP/QTR</span>
+        <span style={{color:C.gold,fontWeight:700,fontFamily:C.mono,flexShrink:0}}>{fmtVol((platformVol*FEE_AIRDROP)*90)}</span>
+        <span style={{color:C.border,flexShrink:0}}>│</span>
+        <span style={{color:C.textQuat,flexShrink:0}}>SLOTS</span>
+        <span style={{color:slotData.open>5?C.green:C.red,fontWeight:600,fontFamily:C.mono,cursor:"pointer",flexShrink:0}} onClick={()=>setShowSlots(true)}>{slotData.open}/{slotData.cap}</span>
+        <div style={{flex:1}}/>
+        <div style={{display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
+          <div style={{width:5,height:5,borderRadius:"50%",background:C.green,animation:"pulse 2s infinite"}}/>
+          <span style={{color:C.textQuat,fontSize:10}}>Live</span>
         </div>
       </div>
 
-      <div style={{maxWidth:1100,margin:"0 auto",padding:"20px 20px 100px"}}>
-
-        {/* Platform stats row — editorial style */}
-        <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
-          <div style={{background:`linear-gradient(135deg, rgba(201,168,76,0.06), rgba(201,168,76,0.02))`,border:"1px solid rgba(201,168,76,0.15)",borderRadius:10,padding:"10px 16px",display:"flex",gap:10,alignItems:"center",flex:"1 1 auto"}}>
-            <div style={{width:32,height:32,borderRadius:8,background:"rgba(201,168,76,0.1)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-            </div>
-            <div>
-              <Label size={10} color={C.textTer} style={{display:"block",letterSpacing:"0.04em",textTransform:"uppercase"}}>Platform Volume</Label>
-              <Label size={16} color={C.gold} weight={700} mono>{fmtVol(platformVol)}</Label>
-            </div>
-          </div>
-          <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 16px",display:"flex",gap:10,alignItems:"center",flex:"1 1 auto"}}>
-            <div style={{width:32,height:32,borderRadius:8,background:"rgba(34,197,94,0.08)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
-            </div>
-            <div>
-              <Label size={10} color={C.textTer} style={{display:"block",letterSpacing:"0.04em",textTransform:"uppercase"}}>Live Tokens</Label>
-              <Label size={16} color={C.text} weight={700} mono>{tokens.filter(t=>t.hasPool!==false).length}</Label>
-            </div>
-          </div>
-          <div style={{background:`linear-gradient(135deg, rgba(201,168,76,0.04), transparent)`,border:"1px solid rgba(201,168,76,0.12)",borderRadius:10,padding:"10px 16px",display:"flex",gap:10,alignItems:"center",flex:"1 1 auto"}}>
-            <div style={{width:32,height:32,borderRadius:8,background:"rgba(201,168,76,0.08)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-              <div style={{width:8,height:8,borderRadius:"50%",background:C.gold,animation:"pulse 2s infinite"}}/>
-            </div>
-            <div>
-              <Label size={10} color={C.textTer} style={{display:"block",letterSpacing:"0.04em",textTransform:"uppercase"}}>Airdrop Pool / Quarter</Label>
-              <Label size={16} color={C.gold} weight={700} mono>{fmtVol((platformVol*FEE_AIRDROP)*90)}</Label>
-            </div>
-          </div>
-          <div style={{background:C.card,border:`1px solid ${slotData.open>0?C.border:C.redBd}`,borderRadius:10,padding:"10px 16px",display:"flex",gap:10,alignItems:"center",cursor:"pointer",flex:"0 0 auto"}} onClick={()=>setShowSlots(true)}>
-            <div style={{width:32,height:32,borderRadius:8,background:slotData.open>5?"rgba(34,197,94,0.08)":"rgba(244,63,94,0.08)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-              <div style={{width:8,height:8,borderRadius:"50%",background:slotData.open>5?C.green:slotData.open>0?C.gold:C.red}}/>
-            </div>
-            <div>
-              <Label size={10} color={C.textTer} style={{display:"block",letterSpacing:"0.04em",textTransform:"uppercase"}}>Launch Slots</Label>
-              <Label size={16} color={slotData.open>0?C.text:C.red} weight={700} mono>{slotData.open}<span style={{fontSize:11,color:C.textQuat,fontWeight:400}}>/{slotData.cap}</span></Label>
-            </div>
-          </div>
-        </div>
-
-        <TabFeed tokens={tokens} onSelect={setSelected}/>
-
+      <div style={{padding:"10px 12px 80px",maxWidth:1400,margin:"0 auto"}}>
+        <ScannerFeed tokens={tokens} onSelect={setSelected}/>
       </div>
 
       {launching&&<LaunchModal onClose={()=>setLaunching(false)} slotData={slotData} onDeployed={(newToken)=>{
