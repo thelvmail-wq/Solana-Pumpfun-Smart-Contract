@@ -1331,8 +1331,11 @@ function TokenPage({t:tProp,onClose,connected,onConnect}) {
           )}
           <div style={{width:1,height:24,background:C.border,marginLeft:4}}/>
           <div style={{textAlign:"right"}}>
-            <Label size={17} color={C.text} weight={700}>{t.pricePerToken ? (t.pricePerToken*180).toFixed(8) : "0.00000000"}</Label>
-            <div><Label size={12} color={up?C.green:C.red} weight={500}>{up?"+":""}{t.chg.toFixed(1)}%</Label><Label size={12} color={C.textTer} style={{marginLeft:6}}>{fmt(t.mcap)} MC</Label></div>
+            <div style={{display:"flex",alignItems:"baseline",gap:6,justifyContent:"flex-end"}}>
+              <Label size={11} color={up?C.green:C.red} weight={600}>{up?"+":""}{t.chg.toFixed(1)}%</Label>
+              <Label size={18} color={C.text} weight={700}>{fmt(t.mcap)} <span style={{fontSize:11,color:C.textTer,fontWeight:400}}>MC</span></Label>
+            </div>
+            <Label size={11} color={C.textQuat} mono>{t.pricePerToken ? (t.pricePerToken*180).toFixed(8) : "0.00000000"}</Label>
           </div>
         </div>
       </div>
@@ -1344,8 +1347,12 @@ function TokenPage({t:tProp,onClose,connected,onConnect}) {
         <div className="tp-chart">
           <div style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:`1px solid ${C.border}`,flexShrink:0}}>
             <div>
-              <Label size={26} color={C.text} weight={700}>{t.pricePerToken ? (t.pricePerToken*180).toFixed(8) : "0.00000000"}</Label>
-              <Label size={13} color={up?C.green:C.red} weight={500} style={{marginLeft:8}}>{up?"+":""}{t.chg.toFixed(1)}% 24h</Label>
+              <div style={{display:"flex",alignItems:"baseline",gap:8}}>
+                <Label size={28} color={C.text} weight={700}>{fmt(t.mcap)}</Label>
+                <Label size={13} color={C.textTer} weight={400}>MC</Label>
+                <Label size={14} color={up?C.green:C.red} weight={600}>{up?"+":""}{t.chg.toFixed(1)}%</Label>
+              </div>
+              <Label size={12} color={C.textQuat} mono style={{marginTop:2}}>{t.pricePerToken ? "$"+(t.pricePerToken*180).toFixed(8) : "$0.00000000"} per token</Label>
             </div>
             <div style={{display:"flex",gap:4,alignItems:"center"}}>
               {["5M","15M","1H","4H","1D"].map(r=>(
