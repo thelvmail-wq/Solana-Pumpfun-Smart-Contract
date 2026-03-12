@@ -2915,132 +2915,76 @@ function SlotPanel({slotData, platformVol, tokens, onClose, onLaunch}) {
 // ===== TAB FEED =====
 
 function ScannerFeed({tokens, onSelect}) {
-  const [tab, setTab] = useState("new");
-  const [sortKey, setSortKey] = useState("age");
-  const [sortDir, setSortDir] = useState("desc");
-
-  const tabs = [
-    {id:"new",    label:"New",        color:C.blue,   tokens: [...tokens].filter(t=>t.hasPool!==false).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0))},
-    {id:"hot",    label:"Hot",        color:C.accent, tokens: [...tokens].filter(t=>(t.volRaw||0)>0).sort((a,b)=>(b.volRaw||0)-(a.volRaw||0))},
-    {id:"near",   label:"Near Grad",  color:C.purple, tokens: [...tokens].filter(t=>(t.raisedSOL||0)>=50&&!t.bondingFull).sort((a,b)=>(b.raisedSOL||0)-(a.raisedSOL||0))},
-    {id:"bonded", label:"Bonded",     color:C.gold,   tokens: [...tokens].filter(t=>t.bondingFull&&!t.graduated)},
-    {id:"grad",   label:"Graduated",  color:C.raydium,tokens: [...tokens].filter(t=>t.graduated)},
+  const categories = [
+    {id:"new",   label:"New Pairs",  color:C.blue,   tokens: [...tokens].filter(t=>t.hasPool!==false).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0))},
+    {id:"hot",   label:"Hot",        color:C.accent, tokens: [...tokens].filter(t=>(t.volRaw||0)>0).sort((a,b)=>(b.volRaw||0)-(a.volRaw||0))},
+    {id:"near",  label:"Near Grad",  color:C.purple, tokens: [...tokens].filter(t=>(t.raisedSOL||0)>=50&&!t.bondingFull).sort((a,b)=>(b.raisedSOL||0)-(a.raisedSOL||0))},
+    {id:"grad",  label:"Graduated",  color:C.raydium,tokens: [...tokens].filter(t=>t.graduated).sort((a,b)=>(b.volRaw||0)-(a.volRaw||0))},
   ];
 
-  const active = tabs.find(t=>t.id===tab);
-  const handleSort = (key) => { if(sortKey===key) setSortDir(d=>d==="asc"?"desc":"asc"); else { setSortKey(key); setSortDir("desc"); }};
-  const sortedTokens = [...(active?.tokens||[])].sort((a,b)=>{
-    const m = sortDir==="asc"?1:-1;
-    if(sortKey==="mcap") return ((a.mcap||0)-(b.mcap||0))*m;
-    if(sortKey==="vol") return ((a.volRaw||0)-(b.volRaw||0))*m;
-    if(sortKey==="age") return ((a.createdAt||0)-(b.createdAt||0))*m;
-    if(sortKey==="prog") return ((a.raisedSOL||0)-(b.raisedSOL||0))*m;
-    return 0;
-  });
-
-  const SortHead = ({label, k, w, align}) => (
-    <div onClick={()=>handleSort(k)} style={{width:w,flexShrink:0,cursor:"pointer",textAlign:align||"left",userSelect:"none",display:"flex",alignItems:"center",gap:2,justifyContent:align==="right"?"flex-end":"flex-start"}}>
-      <Label size={9} color={sortKey===k?C.textSec:C.textQuat} weight={sortKey===k?600:400} style={{textTransform:"uppercase",letterSpacing:"0.06em"}}>{label}</Label>
-      {sortKey===k&&<span style={{fontSize:7,color:C.textTer}}>{sortDir==="desc"?"▼":"▲"}</span>}
-    </div>
-  );
+  // Compact token row inside a column
+  const TokenRow = ({t}) => {
+    const p = PALETTES[t.pi%8];
+    const solPct = Math.min(100,((t.raisedSOL||0)/85)*100);
+    const barCol = t.bondingFull?C.green:(t.raisedSOL||0)>=60?C.purple:p.a;
+    const isNew = (t.elapsed||999) < 10;
+    return (
+      <div onClick={()=>onSelect(t)} style={{
+        display:"flex",alignItems:"center",gap:8,padding:"7px 10px",
+        borderBottom:`1px solid rgba(255,255,255,0.04)`,cursor:"pointer",
+        transition:"background 0.08s",
+      }}
+        onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.04)"}
+        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+        <Avatar sym={t.sym} pi={t.pi} size={28}/>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:4,marginBottom:1}}>
+            <Label size={12} color={C.text} weight={700} style={{letterSpacing:"-0.02em"}}>{t.sym}</Label>
+            {isNew&&<span style={{fontSize:7,fontWeight:800,color:C.green,background:"rgba(34,197,94,0.15)",borderRadius:2,padding:"0 3px",lineHeight:"12px"}}>NEW</span>}
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:6}}>
+            <Label size={10} color={C.textQuat} mono>{fmtAge(t.age, t.elapsed)}</Label>
+            <Label size={10} color={C.textTer} mono>{t.vol||"$0"}</Label>
+            {(t.txs||0)>0&&<Label size={9} color={C.textQuat} mono>TX {t.txs}</Label>}
+          </div>
+        </div>
+        <div style={{textAlign:"right",flexShrink:0}}>
+          <Label size={12} color={C.text} weight={700} mono style={{display:"block"}}>{fmt(t.mcap||0)}</Label>
+          <div style={{display:"flex",alignItems:"center",gap:4,justifyContent:"flex-end",marginTop:2}}>
+            <div style={{width:40,height:3,background:"rgba(255,255,255,0.06)",borderRadius:99,overflow:"hidden"}}>
+              <div style={{width:`${Math.max(solPct,2)}%`,height:"100%",background:barCol,borderRadius:99}}/>
+            </div>
+            <Label size={8} color={barCol} mono weight={600}>{Math.round(solPct)}%</Label>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
-    <div>
-      {/* Tabs — compact pills */}
-      <div style={{display:"flex",gap:3,marginBottom:8,alignItems:"center"}}>
-        {tabs.map(t=>(
-          <button key={t.id} onClick={()=>setTab(t.id)} style={{
-            height:26,padding:"0 10px",background:tab===t.id?`${t.color}18`:"transparent",
-            border:`1px solid ${tab===t.id?t.color+"44":"transparent"}`,borderRadius:5,
-            cursor:"pointer",display:"flex",alignItems:"center",gap:4,transition:"all 0.1s",
-          }}>
-            <span style={{fontSize:11,fontWeight:tab===t.id?700:400,color:tab===t.id?t.color:C.textQuat}}>{t.label}</span>
-            <span style={{fontSize:9,fontWeight:600,color:tab===t.id?t.color:C.textQuat,opacity:0.7}}>{t.tokens.length}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* Scanner table */}
-      <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:6,overflow:"hidden"}}>
-        {/* Header */}
-        <div style={{display:"flex",alignItems:"center",padding:"6px 10px",gap:0,background:"rgba(255,255,255,0.02)",borderBottom:`1px solid rgba(255,255,255,0.05)`}}>
-          <div style={{width:32,flexShrink:0}}/>
-          <div style={{width:110,flexShrink:0}}><Label size={9} color={C.textQuat} style={{textTransform:"uppercase",letterSpacing:"0.06em"}}>Token</Label></div>
-          <SortHead label="Age" k="age" w={48}/>
-          <SortHead label="MC" k="mcap" w={70} align="right"/>
-          <SortHead label="Vol" k="vol" w={60} align="right"/>
-          <div className="feed-hide-mobile" style={{width:40,flexShrink:0,textAlign:"right"}}><Label size={9} color={C.textQuat} style={{textTransform:"uppercase",letterSpacing:"0.06em"}}>Txs</Label></div>
-          <div className="feed-hide-mobile" style={{width:48,flexShrink:0,textAlign:"right"}}><Label size={9} color={C.textQuat} style={{textTransform:"uppercase",letterSpacing:"0.06em"}}>Hdrs</Label></div>
-          <SortHead label="Progress" k="prog" w={100} align="right"/>
-        </div>
-
-        {/* Rows */}
-        {sortedTokens.length>0 ? sortedTokens.map((t) => {
-          const p = PALETTES[t.pi%8];
-          const up = (t.chg||0) > 0;
-          const solPct = Math.min(100,((t.raisedSOL||0)/85)*100);
-          const barCol = (t.bondingFull)?C.green:(t.raisedSOL||0)>=60?C.purple:p.a;
-          const isNew = (t.elapsed||999) < 10;
-          return (
-            <div key={t.id} onClick={()=>onSelect(t)} style={{
-              display:"flex",alignItems:"center",padding:"5px 10px",gap:0,
-              borderBottom:`1px solid rgba(255,255,255,0.03)`,cursor:"pointer",
-              transition:"background 0.08s",height:38,
-            }}
-              onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.03)"}
-              onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-              {/* Avatar */}
-              <div style={{width:32,flexShrink:0}}>
-                <Avatar sym={t.sym} pi={t.pi} size={24}/>
-              </div>
-              {/* Ticker */}
-              <div style={{width:110,flexShrink:0,display:"flex",alignItems:"center",gap:4}}>
-                <Label size={12} color={C.text} weight={700} style={{letterSpacing:"-0.02em"}}>{t.sym}</Label>
-                {isNew&&<span style={{fontSize:7,fontWeight:800,color:C.green,background:"rgba(34,197,94,0.15)",borderRadius:2,padding:"0px 3px",lineHeight:"14px"}}>NEW</span>}
-                {t.graduated&&<span style={{fontSize:7,fontWeight:800,color:C.raydium,background:`${C.raydium}20`,borderRadius:2,padding:"0px 3px",lineHeight:"14px"}}>GRAD</span>}
-              </div>
-              {/* Age */}
-              <div style={{width:48,flexShrink:0}}>
-                <Label size={10} color={C.textTer} mono>{fmtAge(t.age, t.elapsed)}</Label>
-              </div>
-              {/* MC */}
-              <div style={{width:70,flexShrink:0,textAlign:"right"}}>
-                <Label size={11} color={C.text} weight={600} mono>{fmt(t.mcap||0)}</Label>
-              </div>
-              {/* Vol */}
-              <div style={{width:60,flexShrink:0,textAlign:"right"}}>
-                <Label size={10} color={(t.volRaw||0)>0?C.textSec:C.textQuat} mono>{t.vol||"$0"}</Label>
-              </div>
-              {/* Txs */}
-              <div className="feed-hide-mobile" style={{width:40,flexShrink:0,textAlign:"right"}}>
-                <Label size={10} color={C.textQuat} mono>{t.txs||0}</Label>
-              </div>
-              {/* Holders */}
-              <div className="feed-hide-mobile" style={{width:48,flexShrink:0,textAlign:"right"}}>
-                <Label size={10} color={C.textQuat} mono>{(t.holders||0)>0?t.holders:"—"}</Label>
-              </div>
-              {/* Progress bar */}
-              <div style={{width:100,flexShrink:0,paddingLeft:12}}>
-                {t.graduated?(
-                  <span style={{fontSize:9,fontWeight:700,color:C.raydium}}>ON RAYDIUM</span>
-                ):(
-                  <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    <div style={{flex:1,height:3,background:"rgba(255,255,255,0.06)",borderRadius:99,overflow:"hidden"}}>
-                      <div style={{width:`${Math.max(solPct,2)}%`,height:"100%",background:barCol,borderRadius:99}}/>
-                    </div>
-                    <Label size={9} color={barCol} mono weight={600}>{Math.round(solPct)}%</Label>
-                  </div>
-                )}
-              </div>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(300px, 1fr))",gap:8,alignItems:"start"}}>
+      {categories.map(cat => (
+        <div key={cat.id} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,overflow:"hidden"}}>
+          {/* Column header */}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",borderBottom:`1px solid ${C.border}`,background:"rgba(255,255,255,0.02)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:6}}>
+              <div style={{width:3,height:14,borderRadius:2,background:cat.color}}/>
+              <Label size={11} color={cat.color} weight={700}>{cat.label}</Label>
             </div>
-          );
-        }) : (
-          <div style={{padding:"32px",textAlign:"center"}}>
-            <Label size={12} color={C.textQuat}>No tokens in this category</Label>
+            <span style={{fontSize:10,color:C.textQuat,fontFamily:C.mono}}>{cat.tokens.length}</span>
           </div>
-        )}
-      </div>
+          {/* Token rows */}
+          {cat.tokens.length > 0 ? (
+            <div style={{maxHeight:500,overflowY:"auto"}}>
+              {cat.tokens.map(t => <TokenRow key={t.id} t={t}/>)}
+            </div>
+          ) : (
+            <div style={{padding:"24px 12px",textAlign:"center"}}>
+              <Label size={10} color={C.textQuat}>Empty</Label>
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
@@ -3160,7 +3104,7 @@ export default function SummitMoon() {
         </div>
       </div>
 
-      <div style={{padding:"10px 12px 80px",maxWidth:1400,margin:"0 auto"}}>
+      <div style={{padding:"10px 12px 80px"}}>
         <ScannerFeed tokens={tokens} onSelect={setSelected}/>
       </div>
 
