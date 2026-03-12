@@ -3,7 +3,7 @@ import { getAssociatedTokenAddress, createAssociatedTokenAccountInstruction, TOK
 import { Buffer } from 'buffer'
 
 export const PROGRAM_ID = new PublicKey('9cuFeeHRpr3yfjzeHLm84z95JPGaRgASwV4YY7PaMtkx')
-export const connection = new Connection('https://devnet.helius-rpc.com/?api-key=058c5cbb-e6d6-4f09-a110-aaa298b485c1', 'confirmed')
+export const connection = new Connection('https://api.devnet.solana.com', 'confirmed')
 
 // ── Supabase config (read-only, anon key) ─────────
 const SUPABASE_URL = 'https://zhhplcgfhrtjyruvlqkx.supabase.co'
@@ -426,11 +426,10 @@ export async function fetchAllTokensWithPools() {
       const pricePerToken = reserveOne > 0 ? reserveTwo / reserveOne : 0
       const mcap = reserveOne > 0 ? Math.round((reserveTwo / reserveOne) * 1e9 * solPrice) : 0
 
-      // Fetch holders + stats (these are lightweight calls)
-      const [holders, stats] = await Promise.all([
-        fetchHolderCount(t.mint),
-        fetchTradeStats(t.mint),
-      ])
+      // Skip holder count in feed polling — too many RPC calls
+      // Holders are fetched on-demand when user opens token page
+      const stats = await fetchTradeStats(t.mint)
+      const holders = 0  // placeholder, real count loaded on token page
 
       const volUsd = stats.totalSolVolume * solPrice
       const v = volUsd > 1e6 ? "$"+(volUsd/1e6).toFixed(1)+"M" : volUsd > 1e3 ? "$"+(volUsd/1e3).toFixed(0)+"K" : "$"+Math.round(volUsd)
