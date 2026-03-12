@@ -40,6 +40,52 @@ if (SIGNER_SECRET) {
 
 // ── URL Canonicalization ──────────────────────────
 
+// Twitter Snowflake epoch: 2010-11-04T01:42:54.657Z
+const TWITTER_EPOCH = 1288834974657n;
+
+/**
+ * Extract creation timestamp from a Twitter Snowflake ID
+ * Snowflake = (timestamp_ms - twitter_epoch) << 22 | machine_id << 12 | sequence
+ */
+function tweetTimestampFromId(tweetId) {
+  try {
+    const id = BigInt(tweetId);
+    const timestampMs = Number((id >> 22n) + TWITTER_EPOCH);
+    return timestampMs;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Check if a tweet is fresh enough to lock (under LOCK_WINDOW_MS old)
+ */
+const LOCK_WINDOW_MS = 60 * 1000; // 60 seconds
+
+function isTweetFreshEnough(tweetId) {
+  const createdAt = tweetTimestampFromId(tweetId);
+  if (!createdAt) return { fresh: false, reason: 'Invalid tweet ID' };
+  
+  const ageMs = Date.now() - createdAt;
+  const ageSec = Math.floor(ageMs / 1000);
+  
+  if (ageMs < 0) {
+    // Future timestamp — clock skew, allow it
+    return { fresh: true, ageSec: 0, createdAt };
+  }
+  
+  if (ageMs > LOCK_WINDOW_MS) {
+    return { 
+      fresh: false, 
+      ageSec,
+      createdAt,
+      reason: `Tweet is ${ageSec}s old. Source locks only available for tweets under 60 seconds old.`
+    };
+  }
+  
+  return { fresh: true, ageSec, createdAt };
+}
+
 /**
  * Canonicalize a tweet URL to: x:{tweet_id}
  * Handles: x.com, twitter.com, mobile, tracking params, status URLs
@@ -48,19 +94,15 @@ function canonicalizeTweet(url) {
   const cleaned = url.trim().toLowerCase().replace(/\/$/, '');
   
   // Extract tweet ID from various URL formats
-  // x.com/user/status/1234567890
-  // twitter.com/user/status/1234567890
-  // x.com/i/web/status/1234567890
-  // mobile.twitter.com/user/status/1234567890
   const statusMatch = cleaned.match(/(?:x\.com|twitter\.com)\/(?:.*?)\/status\/(\d+)/);
   if (statusMatch) {
-    return `x:${statusMatch[1]}`;
+    return { canonicalKey: `x:${statusMatch[1]}`, tweetId: statusMatch[1] };
   }
   
   // Direct status URL: x.com/i/status/1234567890
   const directMatch = cleaned.match(/(?:x\.com|twitter\.com)\/i\/(?:web\/)?status\/(\d+)/);
   if (directMatch) {
-    return `x:${directMatch[1]}`;
+    return { canonicalKey: `x:${directMatch[1]}`, tweetId: directMatch[1] };
   }
   
   return null;
@@ -93,7 +135,8 @@ function canonicalizeArticle(url) {
 }
 
 /**
- * Main canonicalization — detect type and normalize
+ * Main canonicalization — detect type, normalize, check freshness
+ * Returns: { canonicalKey, type, tweetId?, freshness? } or null
  */
 function canonicalizeUrl(url) {
   if (!url || url.trim().length < 5) return null;
@@ -102,17 +145,32 @@ function canonicalizeUrl(url) {
   
   // Is it a tweet?
   if (s.includes('x.com/') || s.includes('twitter.com/')) {
-    // Must be a status/tweet URL, not just a profile
     if (s.includes('/status/')) {
-      return canonicalizeTweet(s);
+      const result = canonicalizeTweet(s);
+      if (!result) return null;
+      
+      // Check tweet freshness — only lockable if under 60 seconds old
+      const freshness = isTweetFreshEnough(result.tweetId);
+      
+      return {
+        canonicalKey: result.canonicalKey,
+        type: 'tweet',
+        tweetId: result.tweetId,
+        freshness,
+      };
     }
-    // Profile URL — not lockable
     return null;
   }
   
-  // Is it a web article?
+  // Is it a web article? (no freshness check for articles)
   if (s.includes('.') && (s.includes('/') || s.startsWith('http'))) {
-    return canonicalizeArticle(s);
+    const key = canonicalizeArticle(s);
+    if (!key) return null;
+    return {
+      canonicalKey: key,
+      type: 'article',
+      freshness: { fresh: true, ageSec: 0 },
+    };
   }
   
   return null;
@@ -226,15 +284,28 @@ app.post('/canonicalize', async (req, res) => {
     }
     
     // Step 1: Canonicalize the URL
-    const canonicalKey = canonicalizeUrl(source_url);
-    if (!canonicalKey) {
+    const result = canonicalizeUrl(source_url);
+    if (!result) {
       return res.status(400).json({ 
         error: 'Invalid source URL. Must be a tweet (x.com/.../status/...) or article URL.',
         hint: 'Profile URLs, domains, and keywords are not lockable.'
       });
     }
     
-    // Step 2: Check if already locked
+    const { canonicalKey, type, freshness } = result;
+    
+    // Step 2: Check tweet freshness — must be under 60 seconds old
+    if (type === 'tweet' && !freshness.fresh) {
+      return res.status(400).json({
+        error: freshness.reason,
+        canonical_key: canonicalKey,
+        type: 'tweet',
+        age_seconds: freshness.ageSec,
+        hint: 'Source locks are only available for tweets posted in the last 60 seconds. This prevents lock squatting on old content.',
+      });
+    }
+    
+    // Step 3: Check if already locked
     const existingLock = checkLock(canonicalKey);
     if (existingLock) {
       return res.status(409).json({
@@ -245,18 +316,17 @@ app.post('/canonicalize', async (req, res) => {
       });
     }
     
-    // Step 3: Compute source hash
+    // Step 4: Compute source hash
     const sourceHash = crypto.createHash('sha256').update(canonicalKey).digest('hex');
     
-    // Step 4: Compute image pHash if provided
-    let imagePhash = '0000000000000000'; // default empty
+    // Step 5: Compute image pHash if provided
+    let imagePhash = '0000000000000000';
     if (image_base64) {
       const imgBuffer = Buffer.from(image_base64, 'base64');
       const phash = await computePhash(imgBuffer);
       if (phash) {
         imagePhash = phash;
         
-        // Check for similar images in existing locks
         for (const [key, lock] of activeLocks.entries()) {
           if (lock.phash && lock.phash !== '0000000000000000') {
             const dist = hammingDistance(imagePhash, lock.phash);
@@ -273,10 +343,10 @@ app.post('/canonicalize', async (req, res) => {
       }
     }
     
-    // Step 5: Sign the hashes
+    // Step 6: Sign the hashes
     const payload = Buffer.concat([
-      Buffer.from(sourceHash, 'hex'),     // 32 bytes
-      Buffer.from(imagePhash, 'hex'),      // 8 bytes
+      Buffer.from(sourceHash, 'hex'),
+      Buffer.from(imagePhash, 'hex'),
     ]);
     const signature = signData(payload);
     
@@ -315,16 +385,33 @@ app.get('/check', (req, res) => {
   const { url } = req.query;
   if (!url) return res.status(400).json({ error: 'url param required' });
   
-  const canonicalKey = canonicalizeUrl(url);
-  if (!canonicalKey) {
-    return res.json({ available: false, reason: 'Invalid URL format' });
+  const result = canonicalizeUrl(url);
+  if (!result) {
+    return res.json({ available: false, reason: 'Invalid URL format. Must be a tweet status URL or article URL.' });
+  }
+  
+  const { canonicalKey, type, freshness } = result;
+  
+  // Check freshness for tweets
+  if (type === 'tweet' && !freshness.fresh) {
+    return res.json({
+      available: false,
+      canonical_key: canonicalKey,
+      type: 'tweet',
+      reason: freshness.reason,
+      age_seconds: freshness.ageSec,
+      lockable: false,
+    });
   }
   
   const lock = checkLock(canonicalKey);
   res.json({
     available: !lock,
     canonical_key: canonicalKey,
+    type,
     locked_by: lock?.mint || null,
+    age_seconds: freshness?.ageSec || 0,
+    lockable: true,
   });
 });
 
