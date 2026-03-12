@@ -1705,12 +1705,37 @@ function LaunchModal({onClose,slotData,onDeployed}) {
   const topicBlocked = (topicRes&&topicRes.claimed) || !!twitterClaim || !!websiteClaim;
   const deployBlocked = !!tickerBlock || !!imageBlock || topicBlocked;
 
-  const handleUrl=url=>{
+  const ANTIVAMP_URL = 'https://summit-antivamp.up.railway.app'; // Update after Railway deploy
+
+  const handleUrl=async(url)=>{
     setForm(p=>({...p,topicUrl:url}));
     if(!url||url.trim().length===0){setTopicRes(null);setClassifying(false);return;}
-    if(!url.startsWith("http")||url.length<12){setTopicRes(null);return;}
+    if(url.length<10){setTopicRes(null);return;}
     setClassifying(true);setTopicRes(null);
-    setTimeout(()=>{setTopicRes(classifyTopic(url));setClassifying(false);},900);
+    
+    try {
+      // Try backend first
+      const checkRes = await fetch(`${ANTIVAMP_URL}/check?url=${encodeURIComponent(url)}`).then(r=>r.json()).catch(()=>null);
+      
+      if (checkRes) {
+        if (!checkRes.available && checkRes.locked_by) {
+          setTopicRes({ claimed: true, claimedBy: checkRes.locked_by.slice(0,8)+'...', source: 'on-chain', entity: checkRes.canonical_key });
+        } else if (checkRes.available && checkRes.canonical_key) {
+          const parts = checkRes.canonical_key.split(':');
+          const source = parts[0] === 'x' ? 'X/Twitter' : 'Article';
+          setTopicRes({ claimed: false, source, entity: checkRes.canonical_key, canonicalKey: checkRes.canonical_key });
+        } else {
+          setTopicRes({ claimed: false, source: 'Unknown', entity: 'Invalid URL format', invalid: true });
+        }
+      } else {
+        // Backend not available — fall back to client-side classification
+        setTopicRes(classifyTopic(url));
+      }
+    } catch(e) {
+      // Fallback to client-side
+      setTopicRes(classifyTopic(url));
+    }
+    setClassifying(false);
   };
 
   if(state==="done") return (
@@ -2012,6 +2037,31 @@ function LaunchModal({onClose,slotData,onDeployed}) {
   const imgHashBuf=form.imageFile?await sha256(new Uint8Array(await form.imageFile.arrayBuffer())):Buffer.alloc(32);
   const idRaw=(form.twitter||form.website||"").trim().toLowerCase();
   const idHashBuf=idRaw.length>1?await sha256(idRaw):Buffer.alloc(32);
+
+  // Call anti-vamp backend if source URL provided
+  let antiVampResult = null;
+  if (form.topicUrl && form.topicUrl.trim().length > 5) {
+    try {
+      const imgB64 = form.imageFile ? btoa(String.fromCharCode(...new Uint8Array(await form.imageFile.arrayBuffer()).slice(0, 10000))) : null;
+      const avRes = await fetch(`${ANTIVAMP_URL}/canonicalize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source_url: form.topicUrl, image_base64: imgB64, ticker: tkr }),
+      }).then(r => r.json()).catch(() => null);
+      
+      if (avRes?.error) {
+        throw new Error(`Anti-vamp: ${avRes.error}`);
+      }
+      if (avRes?.source_hash) {
+        antiVampResult = avRes;
+        console.log("Anti-vamp approved:", avRes.canonical_key);
+      }
+    } catch(avErr) {
+      console.warn("Anti-vamp check skipped:", avErr.message);
+      // Non-fatal — deploy continues without source lock
+    }
+  }
+
   const{tx:tx2,tickerBuf,imgHash,idHash}=await buildCreateRegistryTx(provider.publicKey,mk.publicKey,tkr,imgHashBuf,idHashBuf);
   tx2.add(ComputeBudgetProgram.setComputeUnitLimit({units:400000}));
   tx2.add(ComputeBudgetProgram.setComputeUnitPrice({microLamports:10000}));
@@ -2097,6 +2147,25 @@ function LaunchModal({onClose,slotData,onDeployed}) {
   }
 
   console.log("FULL DEPLOY COMPLETE");
+
+  // Confirm anti-vamp lock if source URL was used
+  if (antiVampResult) {
+    try {
+      await fetch(`${ANTIVAMP_URL}/confirm-lock`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          canonical_key: antiVampResult.canonical_key,
+          mint: mk.publicKey.toBase58(),
+          phash: antiVampResult.image_phash,
+        }),
+      });
+      console.log("Source lock confirmed:", antiVampResult.canonical_key);
+    } catch(e) {
+      console.warn("Lock confirmation failed:", e.message);
+    }
+  }
+
   // Immediately notify parent to add token to feed
   if(onDeployed) {
     onDeployed({
