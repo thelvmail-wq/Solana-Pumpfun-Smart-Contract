@@ -1155,7 +1155,7 @@ function TokenPage({t:tProp,onClose,connected,onConnect}) {
 
 // ===== LAUNCH MODAL =====
 
-function LaunchModal({onClose,slotData}) {
+function LaunchModal({onClose,slotData,onDeployed}) {
   const [form,setForm]=useState({name:"",sym:"",desc:"",twitter:"",website:"",topicUrl:"",imageFile:null});
   const [state,setState]=useState("idle");
   const [topicRes,setTopicRes]=useState(null);
@@ -1643,6 +1643,40 @@ function LaunchModal({onClose,slotData}) {
   }
 
   console.log("FULL DEPLOY COMPLETE");
+  // Immediately notify parent to add token to feed
+  if(onDeployed) {
+    onDeployed({
+      id: mk.publicKey.toBase58(),
+      pubkey: mk.publicKey.toBase58(),
+      mint: mk.publicKey.toBase58(),
+      mintAddress: mk.publicKey.toBase58(),
+      sym: tkr,
+      name: tkr,
+      pi: Math.abs(mk.publicKey.toBuffer()[0] + mk.publicKey.toBuffer()[1]) % 8,
+      mcap: 208,
+      chg: 0,
+      prog: 0,
+      holders: 1,
+      age: 0,
+      raisedSOL: 0,
+      raisedSOLMax: 85,
+      elapsed: 0,
+      vol: "$0",
+      volRaw: 0,
+      txs: 0,
+      desc: "Deployed on-chain",
+      bondingFull: false,
+      minsAgo: 0,
+      graduated: false,
+      hasPool: true,
+      pricePerToken: 0,
+      solReserve: 0.75,
+      tokenReserve: 650000000,
+      creator: provider.publicKey.toBase58(),
+      createdAt: Math.floor(Date.now()/1000),
+      launchTs: Math.floor(Date.now()/1000),
+    });
+  }
   setState("done");
 }catch(e){console.error("Deploy error:",e);alert("Deploy failed: "+e.message);setState("idle");}})();}} full color={C.accent} loading={state==="loading"} disabled={!ready||deployBlocked||state==="loading"}>
             {`Deploy -- 1.5 SOL${pvpProtected?" + PVP Lock":""}`}
@@ -2561,7 +2595,14 @@ export default function SummitMoon() {
 
       </div>
 
-      {launching&&<LaunchModal onClose={()=>setLaunching(false)} slotData={slotData}/>}
+      {launching&&<LaunchModal onClose={()=>setLaunching(false)} slotData={slotData} onDeployed={(newToken)=>{
+        // Immediately add new token to feed without waiting for poll
+        setTokens(prev => {
+          const exists = prev.find(t => t.mint === newToken.mint);
+          if (exists) return prev;
+          return [newToken, ...prev];
+        });
+      }}/>}
       {showSlots&&<SlotPanel slotData={slotData} platformVol={platformVol} tokens={tokens} onClose={()=>setShowSlots(false)} onLaunch={()=>setLaunching(true)}/>}
     </div>
   );
