@@ -1018,12 +1018,13 @@ function DexBadge({sym}) {
 
 function ChartTradesTable({mint}) {
   const [trades, setTrades] = useState([]);
+  const [sortDesc, setSortDesc] = useState(true);
 
   useEffect(() => {
     if (!mint) return;
     const load = () => {
       import('./solana.js').then(({fetchRecentTrades}) => {
-        fetchRecentTrades(mint, 10).then(data => {
+        fetchRecentTrades(mint, 20).then(data => {
           if (data && data.length > 0) setTrades(data);
         }).catch(() => {});
       });
@@ -1034,37 +1035,84 @@ function ChartTradesTable({mint}) {
   }, [mint]);
 
   if (trades.length === 0) return (
-    <div style={{padding:"12px 16px",textAlign:"center"}}>
-      <Label size={10} color={C.textQuat}>No trades yet</Label>
+    <div style={{padding:"16px",textAlign:"center"}}>
+      <Label size={11} color={C.textQuat}>No transactions yet</Label>
     </div>
   );
 
+  const sorted = sortDesc ? trades : [...trades].reverse();
+
   return (
     <div>
-      <div style={{display:"flex",padding:"4px 16px",gap:0}}>
-        <div style={{width:50}}><Label size={9} color={C.textQuat}>Type</Label></div>
-        <div style={{flex:1}}><Label size={9} color={C.textQuat}>Amount</Label></div>
-        <div style={{width:80,textAlign:"right"}}><Label size={9} color={C.textQuat}>Wallet</Label></div>
-        <div style={{width:50,textAlign:"right"}}><Label size={9} color={C.textQuat}>Time</Label></div>
+      {/* Header row */}
+      <div style={{display:"flex",alignItems:"center",padding:"6px 12px",gap:0,background:"rgba(255,255,255,0.02)",borderBottom:`1px solid rgba(255,255,255,0.05)`}}>
+        <div style={{width:60,flexShrink:0,cursor:"pointer",display:"flex",alignItems:"center",gap:3}} onClick={()=>setSortDesc(!sortDesc)}>
+          <Label size={9} color={C.textQuat} style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Date</Label>
+          <span style={{fontSize:8,color:C.textQuat}}>{sortDesc?"▼":"▲"}</span>
+        </div>
+        <div style={{width:42,flexShrink:0}}>
+          <Label size={9} color={C.textQuat} style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Type</Label>
+        </div>
+        <div style={{flex:1,textAlign:"right"}}>
+          <Label size={9} color={C.textQuat} style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>SOL</Label>
+        </div>
+        <div style={{flex:1,textAlign:"right"}}>
+          <Label size={9} color={C.textQuat} style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Tokens</Label>
+        </div>
+        <div style={{flex:1,textAlign:"right"}} className="feed-hide-mobile">
+          <Label size={9} color={C.textQuat} style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Price</Label>
+        </div>
+        <div style={{width:72,textAlign:"right",flexShrink:0}} className="feed-hide-mobile">
+          <Label size={9} color={C.textQuat} style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Maker</Label>
+        </div>
+        <div style={{width:28,textAlign:"center",flexShrink:0}}>
+          <Label size={9} color={C.textQuat} style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>TX</Label>
+        </div>
       </div>
-      {trades.map((tr, i) => {
+      {/* Trade rows */}
+      {sorted.map((tr, i) => {
         const isBuy = tr.side === 'buy';
         const timeAgo = Math.floor((Date.now() - new Date(tr.timestamp).getTime()) / 60000);
-        const timeStr = timeAgo < 1 ? 'now' : timeAgo < 60 ? `${timeAgo}m` : timeAgo < 1440 ? `${Math.floor(timeAgo/60)}h` : `${Math.floor(timeAgo/1440)}d`;
+        const timeStr = timeAgo < 1 ? 'just now' : timeAgo < 60 ? `${timeAgo}m ago` : timeAgo < 1440 ? `${Math.floor(timeAgo/60)}h ago` : `${Math.floor(timeAgo/1440)}d ago`;
+        const solAmt = parseFloat(tr.sol_amount);
+        const tokenAmt = parseFloat(tr.token_amount || 0);
+        const price = parseFloat(tr.price || 0);
+        const priceUsd = price * 180;
+        const txSig = tr.tx_sig || '';
         return (
-          <div key={tr.tx_sig || i} style={{display:"flex",alignItems:"center",padding:"4px 16px",gap:0,borderTop:i>0?`1px solid rgba(255,255,255,0.03)`:"none"}}>
-            <div style={{width:50,display:"flex",alignItems:"center",gap:4}}>
-              <div style={{width:5,height:5,borderRadius:"50%",background:isBuy?C.green:C.red}}/>
-              <Label size={10} color={isBuy?C.green:C.red} weight={600}>{isBuy?"BUY":"SELL"}</Label>
-            </div>
-            <div style={{flex:1}}>
-              <Label size={10} color={C.text} mono weight={500}>{parseFloat(tr.sol_amount).toFixed(4)} SOL</Label>
-            </div>
-            <div style={{width:80,textAlign:"right"}}>
-              <Label size={10} color={C.textQuat} mono>{tr.wallet?.slice(0,4)}..{tr.wallet?.slice(-3)}</Label>
-            </div>
-            <div style={{width:50,textAlign:"right"}}>
+          <div key={txSig || i} style={{display:"flex",alignItems:"center",padding:"5px 12px",gap:0,
+            borderBottom:`1px solid rgba(255,255,255,0.03)`,
+            transition:"background 0.1s",cursor:"default"}}
+            onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.02)"}
+            onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+            <div style={{width:60,flexShrink:0}}>
               <Label size={10} color={C.textQuat}>{timeStr}</Label>
+            </div>
+            <div style={{width:42,flexShrink:0}}>
+              <span style={{fontSize:10,fontWeight:700,color:isBuy?C.green:C.red,padding:"1px 6px",borderRadius:3,
+                background:isBuy?"rgba(34,197,94,0.1)":"rgba(244,63,94,0.1)"}}>{isBuy?"Buy":"Sell"}</span>
+            </div>
+            <div style={{flex:1,textAlign:"right"}}>
+              <Label size={10} color={isBuy?C.green:C.red} weight={600} mono>{solAmt < 0.01 ? "<0.01" : solAmt.toFixed(2)}</Label>
+            </div>
+            <div style={{flex:1,textAlign:"right"}}>
+              <Label size={10} color={C.text} mono>{tokenAmt > 1000000 ? (tokenAmt/1000000).toFixed(1)+"M" : tokenAmt > 1000 ? Math.floor(tokenAmt).toLocaleString() : tokenAmt.toFixed(2)}</Label>
+            </div>
+            <div style={{flex:1,textAlign:"right"}} className="feed-hide-mobile">
+              <Label size={10} color={C.textSec} mono>{priceUsd > 0.01 ? "$"+priceUsd.toFixed(4) : priceUsd > 0 ? "$"+priceUsd.toFixed(8) : "—"}</Label>
+            </div>
+            <div style={{width:72,textAlign:"right",flexShrink:0}} className="feed-hide-mobile">
+              <Label size={10} color={C.textQuat} mono>{tr.wallet?.slice(0,4)}..{tr.wallet?.slice(-4)}</Label>
+            </div>
+            <div style={{width:28,textAlign:"center",flexShrink:0}}>
+              {txSig && (
+                <a href={`https://solscan.io/tx/${txSig}?cluster=devnet`} target="_blank" rel="noopener noreferrer"
+                  style={{opacity:0.3,transition:"opacity 0.15s"}}
+                  onMouseEnter={e=>e.currentTarget.style.opacity="0.8"}
+                  onMouseLeave={e=>e.currentTarget.style.opacity="0.3"}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.textSec} strokeWidth="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                </a>
+              )}
             </div>
           </div>
         );
@@ -1264,10 +1312,16 @@ function TokenPage({t:tProp,onClose,connected,onConnect}) {
             ))}
           </div>
           {/* Live trades table below chart */}
-          <div style={{borderTop:`1px solid ${C.border}`,flexShrink:0,background:"rgba(0,0,0,0.25)",maxHeight:160,overflowY:"auto"}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 16px",borderBottom:`1px solid rgba(255,255,255,0.04)`}}>
-              <Label size={10} color={C.textTer} style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Recent trades</Label>
-              <Label size={9} color={C.textQuat}>Live</Label>
+          <div style={{borderTop:`1px solid ${C.border}`,flexShrink:0,background:"rgba(0,0,0,0.25)",maxHeight:220,overflowY:"auto"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",borderBottom:`1px solid rgba(255,255,255,0.04)`,position:"sticky",top:0,background:"rgba(13,12,11,0.95)",backdropFilter:"blur(8px)",zIndex:2}}>
+              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.textTer} strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <Label size={11} color={C.textSec} weight={600} style={{letterSpacing:"-0.01em"}}>Transactions</Label>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:4}}>
+                <div style={{width:5,height:5,borderRadius:"50%",background:C.green,animation:"pulse 2s infinite"}}/>
+                <Label size={9} color={C.textQuat}>Live</Label>
+              </div>
             </div>
             <ChartTradesTable mint={t.mint || t.mintAddress}/>
           </div>
