@@ -778,6 +778,8 @@ function SwapPanel({t,connected,onConnect}) {
   const [amt,setAmt]=useState("");
   const [loading,setLoading]=useState(false);
   const [done,setDone]=useState(false);
+  const [slippage,setSlippage]=useState(5); // default 5%
+  const [showSettings,setShowSettings]=useState(false);
   const sol=parseFloat(amt)||0;
   const impact=sol>0?calcImpact(t.mcap,sol,tab==="buy"):null;
   const cw=getLaunchCap(t.elapsed||0);
@@ -786,6 +788,7 @@ function SwapPanel({t,connected,onConnect}) {
   const myHolding = 0;
   const capTokensMax = capTokens(cw.bps);
   const wouldExceed = tab==="buy" && !t.graduated && cw.bps<10000 && (myHolding+tokensOut)>capTokensMax;
+  const highImpact = impact && parseFloat(impact.impact) > slippage;
 
   if(done) return (
     <div style={{textAlign:"center",padding:"32px 16px",animation:"scaleIn 0.2s ease"}}>
@@ -798,14 +801,34 @@ function SwapPanel({t,connected,onConnect}) {
 
   return (
     <div>
-      {/* Buy/Sell toggle */}
-      <div style={{display:"flex",background:"rgba(255,255,255,0.05)",borderRadius:10,padding:2,marginBottom:12}}>
-        {["buy","sell"].map(s=>(
-          <button key={s} onClick={()=>{setTab(s);setAmt("");}} style={{flex:1,height:34,borderRadius:8,border:"none",background:tab===s?"rgba(255,255,255,0.1)":"transparent",color:tab===s?(s==="buy"?C.green:C.red):C.textTer,fontSize:13,fontWeight:tab===s?600:400,cursor:"pointer",transition:"all 0.12s",textTransform:"capitalize",letterSpacing:"-0.02em"}}>
-            {s}
-          </button>
-        ))}
+      {/* Buy/Sell toggle + settings gear */}
+      <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:12}}>
+        <div style={{display:"flex",background:"rgba(255,255,255,0.05)",borderRadius:10,padding:2,flex:1}}>
+          {["buy","sell"].map(s=>(
+            <button key={s} onClick={()=>{setTab(s);setAmt("");}} style={{flex:1,height:34,borderRadius:8,border:"none",background:tab===s?"rgba(255,255,255,0.1)":"transparent",color:tab===s?(s==="buy"?C.green:C.red):C.textTer,fontSize:13,fontWeight:tab===s?600:400,cursor:"pointer",transition:"all 0.12s",textTransform:"capitalize",letterSpacing:"-0.02em"}}>
+              {s}
+            </button>
+          ))}
+        </div>
+        <button onClick={()=>setShowSettings(!showSettings)} style={{width:34,height:34,borderRadius:8,border:`1px solid ${showSettings?C.borderHi:C.border}`,background:showSettings?"rgba(255,255,255,0.06)":"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={showSettings?C.text:C.textTer} strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        </button>
       </div>
+
+      {/* Slippage settings dropdown */}
+      {showSettings&&(
+        <div style={{background:C.sheet,border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 12px",marginBottom:10}}>
+          <Label size={11} color={C.textTer} style={{display:"block",marginBottom:6}}>Max slippage tolerance</Label>
+          <div style={{display:"flex",gap:4}}>
+            {[1,3,5,10].map(v=>(
+              <button key={v} onClick={()=>setSlippage(v)} style={{flex:1,height:28,borderRadius:6,border:`1px solid ${slippage===v?C.gold:C.border}`,background:slippage===v?"rgba(201,168,76,0.1)":"transparent",color:slippage===v?C.gold:C.textTer,fontSize:11,fontWeight:slippage===v?600:400,cursor:"pointer"}}>
+                {v}%
+              </button>
+            ))}
+            <input value={slippage} onChange={e=>{const v=parseFloat(e.target.value);if(!isNaN(v)&&v>0&&v<=50)setSlippage(v);}} style={{width:48,height:28,borderRadius:6,border:`1px solid ${C.border}`,background:"rgba(255,255,255,0.04)",color:C.text,fontSize:11,textAlign:"center",outline:"none"}}/>
+          </div>
+        </div>
+      )}
 
       {/* Amount presets */}
       <div style={{display:"flex",gap:5,marginBottom:8}}>
@@ -848,10 +871,16 @@ function SwapPanel({t,connected,onConnect}) {
         <Label size={10} color={C.gold}>0.50% of every trade → quarterly USDC airdrop. All holders earn by balance. No staking, automatic.</Label>
       </div>
 
+      {/* High slippage warning */}
+      {highImpact&&amt&&(
+        <div style={{display:"flex",alignItems:"flex-start",gap:7,padding:"8px 10px",background:C.redBg,border:`1px solid ${C.redBd}`,borderRadius:8,marginBottom:8}}>
+          <Label size={10} color={C.red}>Price impact ({impact.impact}%) exceeds your slippage tolerance ({slippage}%). Trade may result in significant loss.</Label>
+        </div>
+      )}
+
       <Btn onClick={()=>{if(!connected){onConnect();return;}if(wouldExceed)return;
-        // Slippage check
-        if(impact && parseFloat(impact.impact) > 15) {
-          if(!window.confirm(`Price impact is ${impact.impact}%. Continue anyway?`)) return;
+        if(highImpact) {
+          if(!window.confirm(`Price impact is ${impact.impact}% which exceeds your ${slippage}% slippage tolerance. Continue anyway?`)) return;
         }
         setLoading(true);(async()=>{try{
           const provider=window?.solana;
@@ -982,6 +1011,61 @@ function DexBadge({sym}) {
         </div>
       </div>
     </GlassCard>
+  );
+}
+
+// ===== TRADES TAB =====
+
+function TradesTab({t}) {
+  const [trades, setTrades] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const mintStr = t.mint || t.mintAddress;
+    if (!mintStr) return;
+    import('./solana.js').then(({fetchRecentTrades}) => {
+      fetchRecentTrades(mintStr, 30).then(data => {
+        setTrades(data || []);
+        setLoading(false);
+      }).catch(() => setLoading(false));
+    });
+  }, [t.mint, t.mintAddress]);
+
+  if (loading) return (
+    <div style={{padding:"24px 0",textAlign:"center"}}>
+      <Label size={12} color={C.textQuat}>Loading trades...</Label>
+    </div>
+  );
+
+  if (trades.length === 0) return (
+    <div style={{padding:"24px 0",textAlign:"center"}}>
+      <Label size={12} color={C.textQuat}>No trades yet</Label>
+    </div>
+  );
+
+  return (
+    <div style={{animation:"fadeUp 0.15s ease"}}>
+      {trades.map((tr, i) => {
+        const isBuy = tr.side === 'buy';
+        const timeAgo = Math.floor((Date.now() - new Date(tr.timestamp).getTime()) / 60000);
+        const timeStr = timeAgo < 1 ? 'just now' : timeAgo < 60 ? `${timeAgo}m ago` : timeAgo < 1440 ? `${Math.floor(timeAgo/60)}h ago` : `${Math.floor(timeAgo/1440)}d ago`;
+        return (
+          <div key={tr.tx_sig || i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderBottom:i<trades.length-1?`1px solid ${C.border}`:"none"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <div style={{width:6,height:6,borderRadius:"50%",background:isBuy?C.green:C.red,flexShrink:0}}/>
+              <div>
+                <Label size={12} color={isBuy?C.green:C.red} weight={600}>{isBuy?"Buy":"Sell"}</Label>
+                <Label size={10} color={C.textQuat} style={{display:"block"}}>{timeStr}</Label>
+              </div>
+            </div>
+            <div style={{textAlign:"right"}}>
+              <Label size={12} color={C.text} weight={500} mono>{parseFloat(tr.sol_amount).toFixed(4)} SOL</Label>
+              <Label size={10} color={C.textQuat} mono style={{display:"block"}}>{tr.wallet?.slice(0,4)}...{tr.wallet?.slice(-4)}</Label>
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -1159,7 +1243,7 @@ function TokenPage({t:tProp,onClose,connected,onConnect}) {
 
           {/* Right tab bar */}
           <div style={{display:"flex",borderBottom:`1px solid ${C.border}`,flexShrink:0}}>
-            {["swap","holders"].map(tb=>(
+            {["swap","trades","holders"].map(tb=>(
               <button key={tb} onClick={()=>setRightTab(tb)}
                 style={{flex:1,height:36,border:"none",background:"transparent",color:rightTab===tb?C.text:C.textTer,
                   fontSize:12,fontWeight:rightTab===tb?600:400,cursor:"pointer",
@@ -1177,6 +1261,10 @@ function TokenPage({t:tProp,onClose,connected,onConnect}) {
               <div style={{animation:"fadeUp 0.15s ease"}}>
                 <SwapPanel t={t} connected={connected} onConnect={onConnect}/>
               </div>
+            )}
+
+            {rightTab==="trades"&&(
+              <TradesTab t={t}/>
             )}
 
             {rightTab==="holders"&&(
