@@ -12,7 +12,7 @@ import { createClient } from '@supabase/supabase-js';
 
 // ── Config ────────────────────────────────────────
 const PROGRAM_ID = new PublicKey('9cuFeeHRpr3yfjzeHLm84z95JPGaRgASwV4YY7PaMtkx');
-const RPC_URL = 'https://api.devnet.solana.com';
+const RPC_URL = 'https://devnet.helius-rpc.com/?api-key=058c5cbb-e6d6-4f09-a110-aaa298b485c1';
 const connection = new Connection(RPC_URL, 'confirmed');
 
 const SUPABASE_URL = 'https://zhhplcgfhrtjyruvlqkx.supabase.co';
