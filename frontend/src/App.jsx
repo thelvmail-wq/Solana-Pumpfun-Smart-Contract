@@ -2969,9 +2969,9 @@ function ScannerFeed({tokens, onSelect}) {
   };
 
   return (
-    <div style={{display:"flex",gap:6,flex:1,minHeight:0,overflow:"hidden"}}>
+    <div style={{display:"flex",gap:6,flex:"1 1 0",minHeight:0,overflow:"hidden",width:"100%"}}>
       {categories.map(cat => (
-        <div key={cat.id} style={{flex:"1 1 0",background:C.card,border:`1px solid ${C.border}`,borderRadius:6,display:"flex",flexDirection:"column",minHeight:0,minWidth:0,overflow:"hidden"}}>
+        <div key={cat.id} style={{flex:"1 1 0",width:0,background:C.card,border:`1px solid ${C.border}`,borderRadius:6,display:"flex",flexDirection:"column",minHeight:0,overflow:"hidden"}}>
           {/* Column header */}
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 10px",borderBottom:`1px solid ${C.border}`,background:"rgba(255,255,255,0.02)",flexShrink:0}}>
             <div style={{display:"flex",alignItems:"center",gap:5}}>
@@ -3111,7 +3111,7 @@ export default function SummitMoon() {
         </div>
       </div>
 
-      <div style={{padding:6,flex:1,display:"flex",flexDirection:"column",minHeight:0,overflow:"hidden"}}>
+      <div style={{padding:6,flex:"1 1 0",display:"flex",flexDirection:"column",minHeight:0,overflow:"hidden",width:"100%",boxSizing:"border-box"}}>
         <ScannerFeed tokens={tokens} onSelect={setSelected}/>
       </div>
 
