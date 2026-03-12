@@ -2930,41 +2930,48 @@ function ScannerFeed({tokens, onSelect}) {
     const isNew = (t.elapsed||999) < 10;
     return (
       <div onClick={()=>onSelect(t)} style={{
-        display:"flex",alignItems:"center",gap:6,padding:"5px 8px",
-        borderBottom:`1px solid rgba(255,255,255,0.04)`,cursor:"pointer",
-        transition:"background 0.08s",
+        padding:"10px 12px",borderBottom:`1px solid rgba(255,255,255,0.05)`,
+        cursor:"pointer",transition:"background 0.08s",
       }}
-        onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.04)"}
+        onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.03)"}
         onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-        <Avatar sym={t.sym} pi={t.pi} size={24}/>
-        <div style={{flex:1,minWidth:0}}>
-          <div style={{display:"flex",alignItems:"center",gap:3,marginBottom:0}}>
-            <Label size={11} color={C.text} weight={700} style={{letterSpacing:"-0.02em"}}>{t.sym}</Label>
-            {isNew&&<span style={{fontSize:6,fontWeight:800,color:C.green,background:"rgba(34,197,94,0.15)",borderRadius:2,padding:"0 2px",lineHeight:"10px"}}>NEW</span>}
+        {/* Row 1: avatar + name + MC */}
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}>
+          <Avatar sym={t.sym} pi={t.pi} size={32}/>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{display:"flex",alignItems:"center",gap:4}}>
+              <Label size={13} color={C.text} weight={700}>{t.sym}</Label>
+              {t.name&&t.name!==t.sym&&<Label size={10} color={C.textQuat}>{t.name}</Label>}
+              {isNew&&<span style={{fontSize:7,fontWeight:800,color:C.green,background:"rgba(34,197,94,0.15)",borderRadius:2,padding:"0 4px",lineHeight:"12px"}}>NEW</span>}
+            </div>
+            <Label size={10} color={C.textQuat}>{fmtAge(t.age, t.elapsed)}</Label>
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:4}}>
-            <Label size={9} color={C.textQuat} mono>{fmtAge(t.age, t.elapsed)}</Label>
-            <Label size={9} color={C.textTer} mono>{t.vol||"$0"}</Label>
-            {(t.txs||0)>0&&<Label size={8} color={C.textQuat} mono>{t.txs}tx</Label>}
+          <div style={{textAlign:"right",flexShrink:0}}>
+            <div style={{display:"flex",alignItems:"baseline",gap:3,justifyContent:"flex-end"}}>
+              <Label size={9} color={C.textQuat}>MC</Label>
+              <Label size={14} color={C.text} weight={700} mono>{fmt(t.mcap||0)}</Label>
+            </div>
+            <Label size={10} color={C.textTer} mono>V {t.vol||"$0"}</Label>
           </div>
         </div>
-        <div style={{textAlign:"right",flexShrink:0}}>
-          <Label size={11} color={C.text} weight={700} mono>{fmt(t.mcap||0)}</Label>
-          <div style={{display:"flex",alignItems:"center",gap:3,justifyContent:"flex-end",marginTop:1}}>
-            <div style={{width:32,height:2,background:"rgba(255,255,255,0.06)",borderRadius:99,overflow:"hidden"}}>
-              <div style={{width:`${Math.max(solPct,2)}%`,height:"100%",background:barCol,borderRadius:99}}/>
-            </div>
-            <Label size={7} color={barCol} mono weight={600}>{Math.round(solPct)}%</Label>
-          </div>
+        {/* Row 2: stats + progress */}
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+          <Label size={9} color={C.textQuat} mono>TX {t.txs||0}</Label>
+          <Label size={9} color={C.textQuat} mono>H {(t.holders||0)>0?t.holders:"—"}</Label>
+          <div style={{flex:1}}/>
+          <Label size={9} color={barCol} mono weight={600}>{(t.raisedSOL||0).toFixed(1)}/{85} SOL</Label>
+        </div>
+        <div style={{height:3,background:"rgba(255,255,255,0.06)",borderRadius:99,overflow:"hidden"}}>
+          <div style={{width:`${Math.max(solPct,1)}%`,height:"100%",background:barCol,borderRadius:99}}/>
         </div>
       </div>
     );
   };
 
   return (
-    <div style={{display:"grid",gridTemplateColumns:`repeat(${categories.length}, 1fr)`,gap:6,flex:1,minHeight:0}}>
+    <div style={{display:"flex",gap:6,flex:1,minHeight:0,overflow:"hidden"}}>
       {categories.map(cat => (
-        <div key={cat.id} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:6,overflow:"hidden",display:"flex",flexDirection:"column",minHeight:0}}>
+        <div key={cat.id} style={{flex:"1 1 0",background:C.card,border:`1px solid ${C.border}`,borderRadius:6,display:"flex",flexDirection:"column",minHeight:0,minWidth:0,overflow:"hidden"}}>
           {/* Column header */}
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 10px",borderBottom:`1px solid ${C.border}`,background:"rgba(255,255,255,0.02)",flexShrink:0}}>
             <div style={{display:"flex",alignItems:"center",gap:5}}>
@@ -3085,7 +3092,7 @@ export default function SummitMoon() {
       {showNotifs&&<NotifPanel onClose={()=>setShowNotifs(false)}/>}
 
       {/* Compact stats strip */}
-      <div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,padding:"0 16px",height:32,display:"flex",alignItems:"center",gap:16,fontSize:11,overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+      <div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,padding:"0 16px",height:28,display:"flex",alignItems:"center",gap:16,fontSize:11,flexShrink:0,width:"100%",boxSizing:"border-box"}}>
         <span style={{color:C.textQuat,flexShrink:0}}>VOL</span>
         <span style={{color:C.gold,fontWeight:700,fontFamily:C.mono,flexShrink:0}}>{fmtVol(platformVol)}</span>
         <span style={{color:C.border,flexShrink:0}}>│</span>
@@ -3104,7 +3111,7 @@ export default function SummitMoon() {
         </div>
       </div>
 
-      <div style={{padding:"6px 12px",flex:1,display:"flex",flexDirection:"column",minHeight:0}}>
+      <div style={{padding:6,flex:1,display:"flex",flexDirection:"column",minHeight:0,overflow:"hidden"}}>
         <ScannerFeed tokens={tokens} onSelect={setSelected}/>
       </div>
 
