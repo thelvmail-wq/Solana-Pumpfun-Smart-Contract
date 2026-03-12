@@ -2929,6 +2929,12 @@ function ScannerFeed({tokens, onSelect}) {
     const solPct = Math.min(100,((t.raisedSOL||0)/85)*100);
     const barCol = t.bondingFull?C.green:(t.raisedSOL||0)>=60?C.purple:p.a;
     const isNew = (t.elapsed||999) < 10;
+    
+    // Source verification status
+    const hasSource = !!(t.topicLocked || t.topicSource);
+    const isCopy = !hasSource && t.topicTitle; // has topic reference but no lock
+    // verified = gold lock, unverified = nothing, copy = red warning
+    
     return (
       <div onClick={()=>onSelect(t)} style={{
         padding:"10px 12px",borderBottom:`1px solid rgba(255,255,255,0.05)`,
@@ -2936,16 +2942,43 @@ function ScannerFeed({tokens, onSelect}) {
       }}
         onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.03)"}
         onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-        {/* Row 1: avatar + name + MC */}
+        {/* Row 1: avatar + name + badges + MC */}
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}>
           <Avatar sym={t.sym} pi={t.pi} size={32}/>
           <div style={{flex:1,minWidth:0}}>
-            <div style={{display:"flex",alignItems:"center",gap:4}}>
+            <div style={{display:"flex",alignItems:"center",gap:4,flexWrap:"wrap"}}>
               <Label size={13} color={C.text} weight={700}>{t.sym}</Label>
-              {t.name&&t.name!==t.sym&&<Label size={10} color={C.textQuat}>{t.name}</Label>}
+              {/* Source badge */}
+              {hasSource&&(
+                <span title="Verified Source Claim" style={{display:"inline-flex",alignItems:"center",gap:2,fontSize:7,fontWeight:700,color:C.gold,background:"rgba(201,168,76,0.12)",border:"1px solid rgba(201,168,76,0.25)",borderRadius:3,padding:"1px 4px",lineHeight:"11px",cursor:"default"}}>
+                  <svg width="7" height="7" viewBox="0 0 24 24" fill={C.gold} stroke="none"><path d="M12 1l3.09 6.26L22 8.27l-5 4.87L18.18 20 12 16.77 5.82 20 7 13.14l-5-4.87 6.91-1.01L12 1z"/></svg>
+                  VERIFIED
+                </span>
+              )}
+              {isCopy&&(
+                <span title="Unverified — related source already claimed" style={{display:"inline-flex",alignItems:"center",gap:2,fontSize:7,fontWeight:600,color:C.red,background:"rgba(244,63,94,0.1)",borderRadius:3,padding:"1px 4px",lineHeight:"11px"}}>COPY</span>
+              )}
               {isNew&&<span style={{fontSize:7,fontWeight:800,color:C.green,background:"rgba(34,197,94,0.15)",borderRadius:2,padding:"0 4px",lineHeight:"12px"}}>NEW</span>}
             </div>
-            <Label size={10} color={C.textQuat}>{fmtAge(t.age, t.elapsed)}</Label>
+            <div style={{display:"flex",alignItems:"center",gap:4,marginTop:1}}>
+              <Label size={10} color={C.textQuat}>{fmtAge(t.age, t.elapsed)}</Label>
+              {/* Social links — tiny inline icons */}
+              {t.tw&&(
+                <a href={`https://x.com/${t.tw}`} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()} style={{opacity:0.35,transition:"opacity 0.1s"}} onMouseEnter={e=>e.currentTarget.style.opacity="0.8"} onMouseLeave={e=>e.currentTarget.style.opacity="0.35"}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="rgba(255,255,255,0.7)"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.253 5.622 5.911-5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                </a>
+              )}
+              {t.tg&&(
+                <a href={`https://t.me/${t.tg}`} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()} style={{opacity:0.35,transition:"opacity 0.1s"}} onMouseEnter={e=>e.currentTarget.style.opacity="0.8"} onMouseLeave={e=>e.currentTarget.style.opacity="0.35"}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="rgba(255,255,255,0.7)"><path d="M11.944 0A12 12 0 000 12a12 12 0 0012 12 12 12 0 0012-12A12 12 0 0012 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 01.171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+                </a>
+              )}
+              {t.web&&(
+                <a href={`https://${t.web}`} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()} style={{opacity:0.35,transition:"opacity 0.1s"}} onMouseEnter={e=>e.currentTarget.style.opacity="0.8"} onMouseLeave={e=>e.currentTarget.style.opacity="0.35"}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+                </a>
+              )}
+            </div>
           </div>
           <div style={{textAlign:"right",flexShrink:0}}>
             <Label size={15} color={C.text} weight={700} mono style={{display:"block"}}>{fmt(t.mcap||0)}</Label>
