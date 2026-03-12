@@ -2759,26 +2759,43 @@ export default function SummitMoon() {
 
       <div style={{maxWidth:1100,margin:"0 auto",padding:"20px 20px 100px"}}>
 
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20,gap:10}}>
-          <div style={{display:"flex",gap:10,alignItems:"center"}}>
-            <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:"6px 14px",display:"flex",gap:8,alignItems:"center"}}>
-              <Label size={12} color={C.textTer}>Vol</Label>
-              <Label size={13} color={C.text} weight={600} mono>{fmtVol(platformVol)}</Label>
+        {/* Platform stats row — editorial style */}
+        <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+          <div style={{background:`linear-gradient(135deg, rgba(201,168,76,0.06), rgba(201,168,76,0.02))`,border:"1px solid rgba(201,168,76,0.15)",borderRadius:10,padding:"10px 16px",display:"flex",gap:10,alignItems:"center",flex:"1 1 auto"}}>
+            <div style={{width:32,height:32,borderRadius:8,background:"rgba(201,168,76,0.1)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
             </div>
-            <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:"6px 14px",display:"flex",gap:8,alignItems:"center"}}>
-              <Label size={12} color={C.textTer}>Tokens</Label>
-              <Label size={13} color={C.text} weight={600} mono>{tokens.length}</Label>
-            </div>
-            <div style={{background:"rgba(201,168,76,0.08)",border:"1px solid rgba(201,168,76,0.2)",borderRadius:10,padding:"6px 14px",display:"flex",gap:6,alignItems:"center"}}>
-              <div style={{width:6,height:6,borderRadius:"50%",background:C.gold,animation:"pulse 2s infinite",flexShrink:0}}/>
-              <Label size={12} color={C.textTer}>Airdrop pool/qtr</Label>
-              <Label size={13} color={C.gold} weight={700} mono>{fmtVol((platformVol*FEE_AIRDROP)*90)}</Label>
+            <div>
+              <Label size={10} color={C.textTer} style={{display:"block",letterSpacing:"0.04em",textTransform:"uppercase"}}>Platform Volume</Label>
+              <Label size={16} color={C.gold} weight={700} mono>{fmtVol(platformVol)}</Label>
             </div>
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:8,background:C.card,border:`1px solid ${slotData.open>0?C.border:C.redBd}`,borderRadius:10,padding:"6px 14px",cursor:"pointer"}} onClick={()=>setShowSlots(true)}>
-            <div style={{width:6,height:6,borderRadius:"50%",background:slotData.open>5?C.green:slotData.open>0?C.gold:C.red,flexShrink:0}}/>
-            <Label size={12} color={slotData.open>0?C.text:C.red} weight={500}>{slotData.open} slots open</Label>
-            <Label size={11} color={C.textQuat}>/ {slotData.cap} cap</Label>
+          <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 16px",display:"flex",gap:10,alignItems:"center",flex:"1 1 auto"}}>
+            <div style={{width:32,height:32,borderRadius:8,background:"rgba(34,197,94,0.08)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+            </div>
+            <div>
+              <Label size={10} color={C.textTer} style={{display:"block",letterSpacing:"0.04em",textTransform:"uppercase"}}>Live Tokens</Label>
+              <Label size={16} color={C.text} weight={700} mono>{tokens.filter(t=>t.hasPool!==false).length}</Label>
+            </div>
+          </div>
+          <div style={{background:`linear-gradient(135deg, rgba(201,168,76,0.04), transparent)`,border:"1px solid rgba(201,168,76,0.12)",borderRadius:10,padding:"10px 16px",display:"flex",gap:10,alignItems:"center",flex:"1 1 auto"}}>
+            <div style={{width:32,height:32,borderRadius:8,background:"rgba(201,168,76,0.08)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              <div style={{width:8,height:8,borderRadius:"50%",background:C.gold,animation:"pulse 2s infinite"}}/>
+            </div>
+            <div>
+              <Label size={10} color={C.textTer} style={{display:"block",letterSpacing:"0.04em",textTransform:"uppercase"}}>Airdrop Pool / Quarter</Label>
+              <Label size={16} color={C.gold} weight={700} mono>{fmtVol((platformVol*FEE_AIRDROP)*90)}</Label>
+            </div>
+          </div>
+          <div style={{background:C.card,border:`1px solid ${slotData.open>0?C.border:C.redBd}`,borderRadius:10,padding:"10px 16px",display:"flex",gap:10,alignItems:"center",cursor:"pointer",flex:"0 0 auto"}} onClick={()=>setShowSlots(true)}>
+            <div style={{width:32,height:32,borderRadius:8,background:slotData.open>5?"rgba(34,197,94,0.08)":"rgba(244,63,94,0.08)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              <div style={{width:8,height:8,borderRadius:"50%",background:slotData.open>5?C.green:slotData.open>0?C.gold:C.red}}/>
+            </div>
+            <div>
+              <Label size={10} color={C.textTer} style={{display:"block",letterSpacing:"0.04em",textTransform:"uppercase"}}>Launch Slots</Label>
+              <Label size={16} color={slotData.open>0?C.text:C.red} weight={700} mono>{slotData.open}<span style={{fontSize:11,color:C.textQuat,fontWeight:400}}>/{slotData.cap}</span></Label>
+            </div>
           </div>
         </div>
 
