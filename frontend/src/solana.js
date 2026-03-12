@@ -2,7 +2,7 @@ import { Connection, PublicKey, SystemProgram, Transaction, TransactionInstructi
 import { getAssociatedTokenAddress, createAssociatedTokenAccountInstruction, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from '@solana/spl-token'
 import { Buffer } from 'buffer'
 
-export const PROGRAM_ID = new PublicKey('9cuFeeHRpr3yfjzeHLm84z95JPGaRgASwV4YY7PaMtkx')
+export const PROGRAM_ID = new PublicKey('73wyBdTRbZPegtYQbjs4uCAvkiUK9wWKd91WWJHyYL3j')
 export const connection = new Connection('https://api.devnet.solana.com', 'confirmed')
 
 // ── Supabase config (read-only, anon key) ─────────
