@@ -1,11 +1,13 @@
 [toolchain]
+anchor_version = "0.30.1"
+solana_version = "1.18.17"
 
 [features]
 resolution = true
 skip-lint = false
 
 [programs.devnet]
-pump = "9cuFeeHRpr3yfjzeHLm84z95JPGaRgASwV4YY7PaMtkx"
+pump = "73wyBdTRbZPegtYQbjs4uCAvkiUK9wWKd91WWJHyYL3j"
 
 [registry]
 url = "https://devnet.helius-rpc.com/?api-key=39d83ffa-585c-4f90-8636-2f6795db4cb3"

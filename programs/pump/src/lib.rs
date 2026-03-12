@@ -9,7 +9,7 @@ pub mod utils;
 
 use crate::instructions::*;
 
-declare_id!("9cuFeeHRpr3yfjzeHLm84z95JPGaRgASwV4YY7PaMtkx");
+declare_id!("73wyBdTRbZPegtYQbjs4uCAvkiUK9wWKd91WWJHyYL3j");
 
 #[program]
 pub mod pump {
@@ -40,15 +40,14 @@ pub mod pump {
         instructions::remove_liquidity(ctx, nonce, init_pc_amount)
     }
 
-    pub fn swap(ctx: Context<Swap>, amount: u64, style: u64) -> Result<()> {
-        instructions::swap(ctx, amount, style)
+    pub fn swap(ctx: Context<Swap>, amount: u64, style: u64, min_amount_out: u64) -> Result<()> {
+        instructions::swap(ctx, amount, style, min_amount_out)
     }
 
     pub fn migrate_to_raydium(ctx: Context<MigrateToRaydium>, nonce: u8) -> Result<()> {
         instructions::migrate_to_raydium(ctx, nonce)
     }
 
-    /// Step 1 of 2: create the TokenRegistry PDA for a new token.
     pub fn create_token_registry(
         ctx: Context<CreateTokenRegistry>,
         ticker_hash: [u8; 32],
@@ -59,8 +58,6 @@ pub mod pump {
         instructions::create_token_registry(ctx, ticker_hash, image_hash, identity_hash, ticker_raw)
     }
 
-    /// Step 2 of 2: claim ticker/image/identity locks.
-    /// FIRST-DEPLOYER-WINS: if any lock PDA already exists, this tx fails.
     pub fn claim_locks(
         ctx: Context<ClaimLocks>,
         ticker_hash: [u8; 32],
@@ -70,12 +67,10 @@ pub mod pump {
         instructions::claim_locks(ctx, ticker_hash, image_hash, identity_hash)
     }
 
-    /// Keeper-only: activate protection when token MC > $100K.
     pub fn activate_protection(ctx: Context<ActivateProtection>) -> Result<()> {
         instructions::activate_protection(ctx)
     }
 
-    /// Keeper-only: deactivate protection when token MC drops below $100K.
     pub fn deactivate_protection(ctx: Context<DeactivateProtection>) -> Result<()> {
         instructions::deactivate_protection(ctx)
     }

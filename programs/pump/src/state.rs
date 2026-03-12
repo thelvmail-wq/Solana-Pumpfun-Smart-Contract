@@ -1,4 +1,4 @@
-use crate::consts::{GRADUATION_THRESHOLD_LAMPORTS, LP_FEE_BPS, AIRDROP_FEE_BPS};
+use crate::consts::{GRADUATION_THRESHOLD_LAMPORTS, LP_FEE_BPS, AIRDROP_FEE_BPS, SNIPE_WINDOW_1, SNIPE_WINDOW_2, SNIPE_WINDOW_3};
 use crate::errors::CustomError;
 use crate::utils::convert_from_float;
 use crate::utils::convert_to_float;
@@ -79,7 +79,7 @@ pub trait LiquidityPoolAccount<'info> {
     fn update_reserves(&mut self, r1: u64, r2: u64) -> Result<()>;
     fn add_liquidity(&mut self, t1: (&mut Account<'info, Mint>, &mut Account<'info, TokenAccount>, &mut Account<'info, TokenAccount>), t2: (&mut Account<'info, Mint>, &mut AccountInfo<'info>, &mut AccountInfo<'info>), a1: u64, a2: u64, lp: &mut Account<'info, LiquidityProvider>, auth: &Signer<'info>, tp: &Program<'info, Token>) -> Result<()>;
     fn remove_liquidity(&mut self, t1: (&mut Account<'info, Mint>, &mut Account<'info, TokenAccount>, &mut Account<'info, TokenAccount>), t2: (&mut Account<'info, Mint>, &mut AccountInfo<'info>, &mut AccountInfo<'info>), shares: u64, lp: &mut Account<'info, LiquidityProvider>, auth: &Signer<'info>, tp: &Program<'info, Token>) -> Result<()>;
-    fn swap(&mut self, config: &Account<'info, CurveConfiguration>, t1: (&mut Account<'info, Mint>, &mut Account<'info, TokenAccount>, &mut Account<'info, TokenAccount>), t2: (&mut Account<'info, Mint>, &mut AccountInfo<'info>, &mut Signer<'info>), amount: u64, style: u64, bump: u8, auth: &Signer<'info>, tp: &Program<'info, Token>, sp: &Program<'info, System>) -> Result<()>;
+    fn swap(&mut self, config: &Account<'info, CurveConfiguration>, t1: (&mut Account<'info, Mint>, &mut Account<'info, TokenAccount>, &mut Account<'info, TokenAccount>), t2: (&mut Account<'info, Mint>, &mut AccountInfo<'info>, &mut Signer<'info>), amount: u64, style: u64, min_amount_out: u64, bump: u8, auth: &Signer<'info>, tp: &Program<'info, Token>, sp: &Program<'info, System>) -> Result<()>;
     fn transfer_token_from_pool(&self, from: &Account<'info, TokenAccount>, to: &Account<'info, TokenAccount>, amount: u64, tp: &Program<'info, Token>, auth: &AccountInfo<'info>, bump: u8) -> Result<()>;
     fn transfer_token_to_pool(&self, from: &Account<'info, TokenAccount>, to: &Account<'info, TokenAccount>, amount: u64, auth: &Signer<'info>, tp: &Program<'info, Token>) -> Result<()>;
     fn transfer_sol_to_pool(&self, from: &Signer<'info>, to: &AccountInfo<'info>, amount: u64, sp: &Program<'info, System>) -> Result<()>;
@@ -131,11 +131,12 @@ impl<'info> LiquidityPoolAccount<'info> for Account<'info, LiquidityPool> {
         self.update_reserves(nr1, nr2)?;
         Ok(())
     }
-    fn swap(&mut self, _config: &Account<'info, CurveConfiguration>, t1: (&mut Account<'info, Mint>, &mut Account<'info, TokenAccount>, &mut Account<'info, TokenAccount>), t2: (&mut Account<'info, Mint>, &mut AccountInfo<'info>, &mut Signer<'info>), amount: u64, style: u64, bump: u8, auth: &Signer<'info>, tp: &Program<'info, Token>, sp: &Program<'info, System>) -> Result<()> {
+    fn swap(&mut self, _config: &Account<'info, CurveConfiguration>, t1: (&mut Account<'info, Mint>, &mut Account<'info, TokenAccount>, &mut Account<'info, TokenAccount>), t2: (&mut Account<'info, Mint>, &mut AccountInfo<'info>, &mut Signer<'info>), amount: u64, style: u64, min_amount_out: u64, bump: u8, auth: &Signer<'info>, tp: &Program<'info, Token>, sp: &Program<'info, System>) -> Result<()> {
         if amount == 0 { return err!(CustomError::InvalidAmount); }
         require!(!self.graduated, CustomError::AlreadyGraduated);
         msg!("Mint: {:?} ", t1.0.key());
         msg!("Swap: {:?} {:?} {:?}", auth.key(), style, amount);
+
         let fee_pct = _config.fees;
         let adj_f = convert_to_float(amount, t1.0.decimals).div(100_f64).mul(100_f64.sub(fee_pct));
         let adj = convert_from_float(adj_f, t1.0.decimals);
@@ -150,13 +151,15 @@ impl<'info> LiquidityPoolAccount<'info> for Account<'info, LiquidityPool> {
             let div_amt = convert_to_float(denom, t1.0.decimals).div(convert_to_float(adj, t1.0.decimals));
             let out_f = convert_to_float(self.reserve_two, 9u8).div(div_amt);
             let amount_out = convert_from_float(out_f, 9u8);
+
+            // Slippage protection
+            require!(amount_out >= min_amount_out, CustomError::SlippageExceeded);
+
             let nr1 = self.reserve_one.checked_add(amount).ok_or(CustomError::OverflowOrUnderflowOccurred)?;
             let nr2 = self.reserve_two.checked_sub(amount_out).ok_or(CustomError::OverflowOrUnderflowOccurred)?;
             self.update_reserves(nr1, nr2)?;
             msg!("Reserves: {:?} {:?}", nr1, nr2);
-            // User sends tokens to pool
             self.transfer_token_to_pool(t1.2, t1.1, amount, auth, tp)?;
-            // Pool PDA sends SOL to user via system_program CPI
             system_program::transfer(
                 CpiContext::new_with_signer(
                     sp.to_account_info(),
@@ -174,25 +177,37 @@ impl<'info> LiquidityPoolAccount<'info> for Account<'info, LiquidityPool> {
             let div_amt = convert_to_float(denom, t1.0.decimals).div(convert_to_float(adj, t1.0.decimals));
             let out_f = convert_to_float(self.reserve_one, 9u8).div(div_amt);
             let amount_out = convert_from_float(out_f, 9u8);
-            // Max wallet check
+
+            // Slippage protection
+            require!(amount_out >= min_amount_out, CustomError::SlippageExceeded);
+
+            // Max wallet anti-snipe check
             let clock = Clock::get()?;
             let elapsed = clock.unix_timestamp.saturating_sub(self.launch_timestamp);
             let total_tokens = t1.0.supply;
-            let max_bps: Option<u64> = if elapsed < 30 { Some(100) } else if elapsed < 120 { Some(200) } else if elapsed < 300 { Some(500) } else { None };
+            let max_bps: Option<u64> = if elapsed < SNIPE_WINDOW_1 {
+                Some(150)  // 1.5%
+            } else if elapsed < SNIPE_WINDOW_2 {
+                Some(250)  // 2.5%
+            } else if elapsed < SNIPE_WINDOW_3 {
+                Some(500)  // 5%
+            } else {
+                None       // open
+            };
             if let Some(bps) = max_bps {
                 let max_t = (total_tokens as u128).checked_mul(bps as u128).unwrap().checked_div(10_000).unwrap() as u64;
                 let bal_after = t1.2.amount.checked_add(amount_out).ok_or(CustomError::OverflowOrUnderflowOccurred)?;
                 require!(bal_after <= max_t, CustomError::MaxWalletExceeded);
             }
+
             self.total_sol_raised = self.total_sol_raised.saturating_add(amount);
             let nr1 = self.reserve_one.checked_sub(amount_out).ok_or(CustomError::OverflowOrUnderflowOccurred)?;
             let nr2 = self.reserve_two.checked_add(amount).ok_or(CustomError::OverflowOrUnderflowOccurred)?;
             self.update_reserves(nr1, nr2)?;
             msg!("Reserves: {:?} {:?}", nr1, nr2);
-            // Pool sends tokens to user
             self.transfer_token_from_pool(t1.1, t1.2, amount_out, tp, t2.1, bump)?;
-            // User sends SOL to pool
             self.transfer_sol_to_pool(t2.2, t2.1, amount, sp)?;
+
             if self.should_graduate() {
                 self.graduated = true;
                 msg!("GRADUATED! Total SOL raised: {:?}", self.total_sol_raised);

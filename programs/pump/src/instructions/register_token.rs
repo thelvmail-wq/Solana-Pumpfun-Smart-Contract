@@ -75,56 +75,6 @@ pub fn claim_locks(
 }
 
 // ─── KEPT FOR BACKWARDS COMPAT: register_token calls both internally ──────────
-// This is the single-instruction path. If it still stack-overflows on some
-// platforms, call create_token_registry + claim_locks separately instead.
-
-pub fn register_token(
-    ctx: Context<RegisterToken>,
-    ticker_hash: [u8; 32],
-    image_hash: [u8; 32],
-    identity_hash: [u8; 32],
-    ticker_raw: [u8; 16],
-) -> Result<()> {
-    let clock = Clock::get()?;
-    let registry = &mut ctx.accounts.token_registry;
-    registry.mint          = ctx.accounts.mint.key();
-    registry.ticker_hash   = ticker_hash;
-    registry.image_hash    = image_hash;
-    registry.identity_hash = identity_hash;
-    registry.ticker_raw    = ticker_raw;
-    registry.protected     = false;
-    registry.protected_at  = 0;
-    registry.creator       = ctx.accounts.creator.key();
-    registry.created_at    = clock.unix_timestamp;
-    registry.bump          = ctx.bumps.token_registry;
-
-    let registry_key = registry.key();
-    {
-        let mut data = ctx.accounts.ticker_lock.try_borrow_mut_data()?;
-        data[8..40].copy_from_slice(registry_key.as_ref());
-        data[40..72].copy_from_slice(&ticker_hash);
-        data[72] = 0u8;
-        data[73] = ctx.bumps.ticker_lock;
-    }
-    {
-        let mut data = ctx.accounts.image_lock.try_borrow_mut_data()?;
-        data[8..40].copy_from_slice(registry_key.as_ref());
-        data[40..72].copy_from_slice(&image_hash);
-        data[72] = 0u8;
-        data[73] = ctx.bumps.image_lock;
-    }
-    {
-        let mut data = ctx.accounts.identity_lock.try_borrow_mut_data()?;
-        data[8..40].copy_from_slice(registry_key.as_ref());
-        data[40..72].copy_from_slice(&identity_hash);
-        data[72] = 0u8;
-        data[73..81].copy_from_slice(&0i64.to_le_bytes());
-        data[81] = ctx.bumps.identity_lock;
-    }
-
-    msg!("Token registered: mint={:?}", ctx.accounts.mint.key());
-    Ok(())
-}
 
 // ─── keeper instructions ──────────────────────────────────────────────────────
 
@@ -228,57 +178,6 @@ pub struct ClaimLocks<'info> {
     pub system_program: Program<'info, System>,
 }
 
-#[derive(Accounts)]
-#[instruction(ticker_hash: [u8; 32], image_hash: [u8; 32], identity_hash: [u8; 32])]
-pub struct RegisterToken<'info> {
-    #[account(
-        init,
-        space = TokenRegistry::ACCOUNT_SIZE,
-        payer = creator,
-        seeds = [TokenRegistry::SEED_PREFIX.as_bytes(), mint.key().as_ref()],
-        bump,
-    )]
-    pub token_registry: Box<Account<'info, TokenRegistry>>,
-
-    /// CHECK: seeded by ticker_hash — first-deployer-wins via init
-    #[account(
-        init,
-        space = TickerLock::ACCOUNT_SIZE,
-        payer = creator,
-        seeds = [TickerLock::SEED_PREFIX.as_bytes(), &ticker_hash],
-        bump,
-    )]
-    pub ticker_lock: UncheckedAccount<'info>,
-
-    /// CHECK: seeded by image_hash — first-deployer-wins via init
-    #[account(
-        init,
-        space = ImageLock::ACCOUNT_SIZE,
-        payer = creator,
-        seeds = [ImageLock::SEED_PREFIX.as_bytes(), &image_hash],
-        bump,
-    )]
-    pub image_lock: UncheckedAccount<'info>,
-
-    /// CHECK: seeded by identity_hash — first-deployer-wins via init
-    #[account(
-        init,
-        space = IdentityLock::ACCOUNT_SIZE,
-        payer = creator,
-        seeds = [IdentityLock::SEED_PREFIX.as_bytes(), &identity_hash],
-        bump,
-    )]
-    pub identity_lock: UncheckedAccount<'info>,
-
-    /// CHECK: token mint
-    #[account(mut)]
-    pub mint: AccountInfo<'info>,
-
-    #[account(mut)]
-    pub creator: Signer<'info>,
-
-    pub system_program: Program<'info, System>,
-}
 
 #[derive(Accounts)]
 pub struct ActivateProtection<'info> {

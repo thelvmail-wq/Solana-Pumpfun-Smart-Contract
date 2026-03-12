@@ -22,10 +22,10 @@ pub const DEPLOY_PROTOCOL_PCT: u64 = 30;
 pub const DEPLOY_AIRDROP_PCT: u64 = 10;
 pub const DEPLOY_INFRA_PCT: u64 = 10;
 
-/// Max wallet anti-snipe windows (seconds)
-pub const SNIPE_WINDOW_1: i64 = 30;   // 0-30s: 1% max
-pub const SNIPE_WINDOW_2: i64 = 120;  // 30s-2min: 2% max
-pub const SNIPE_WINDOW_3: i64 = 300;  // 2min-5min: 5% max
+/// Max wallet anti-snipe windows (seconds from launch)
+pub const SNIPE_WINDOW_1: i64 = 120;   // 0-2min: 1.5% max (150 bps)
+pub const SNIPE_WINDOW_2: i64 = 300;   // 2-5min: 2.5% max (250 bps)
+pub const SNIPE_WINDOW_3: i64 = 600;   // 5-10min: 5% max (500 bps)
 
 /// Anti-vamp: MC threshold for protection activation (in USD cents to avoid floats)
 /// $100,000 = 10_000_000 cents. Keeper checks this off-chain and calls activate_protection.
