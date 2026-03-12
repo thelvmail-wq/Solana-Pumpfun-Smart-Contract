@@ -2918,9 +2918,9 @@ function SlotPanel({slotData, platformVol, tokens, onClose, onLaunch}) {
 function ScannerFeed({tokens, onSelect}) {
   const categories = [
     {id:"new",   label:"New Pairs",  color:C.blue,   tokens: [...tokens].filter(t=>t.hasPool!==false).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0))},
-    {id:"hot",   label:"Hot",        color:C.accent, tokens: [...tokens].filter(t=>(t.volRaw||0)>0).sort((a,b)=>(b.volRaw||0)-(a.volRaw||0))},
     {id:"near",  label:"Near Grad",  color:C.purple, tokens: [...tokens].filter(t=>(t.raisedSOL||0)>=50&&!t.bondingFull).sort((a,b)=>(b.raisedSOL||0)-(a.raisedSOL||0))},
     {id:"grad",  label:"Graduated",  color:C.raydium,tokens: [...tokens].filter(t=>t.graduated).sort((a,b)=>(b.volRaw||0)-(a.volRaw||0))},
+    {id:"blast", label:"Blasting",   color:"#ff6b35", tokens: [...tokens].filter(t=>t.hasPool!==false&&((t.volRaw||0)>0||(t.txs||0)>0)).sort((a,b)=>(b.volRaw||0)-(a.volRaw||0))},
   ];
 
   // Compact token row inside a column
