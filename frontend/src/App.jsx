@@ -2914,70 +2914,75 @@ function SlotPanel({slotData, platformVol, tokens, onClose, onLaunch}) {
 
 // ===== TAB FEED =====
 
-function FeedRow({t, onClick, rank}) {
+function FeedCard({t, onClick}) {
   t={...t,txs:t.txs||0,vol:t.vol||"$0",volRaw:t.volRaw||0,holders:t.holders||0,raisedSOL:t.raisedSOL||0,mcap:t.mcap||0,chg:t.chg||0,bondingFull:t.bondingFull||false,graduated:t.graduated||false,sym:t.sym||"???",name:t.name||t.sym||"Unknown",pi:t.pi||0,minsAgo:t.minsAgo||0,elapsed:t.elapsed||0};
   const p = PALETTES[t.pi%8], up = t.chg>0, as = getAS(t);
   const solPct = Math.min(100,((t.raisedSOL||0)/85)*100);
   const barCol = t.bondingFull?C.green:(t.raisedSOL||0)>=60?C.purple:p.a;
-  const spark = Array.from({length:16},(_,i)=>Math.max(0.2,0.5+Math.sin(i*0.5+t.pi)*0.25+Math.random()*0.35));
+  const isNew = (t.elapsed||999) < 10;
 
   return (
     <div onClick={()=>onClick(t)} style={{
-      display:"flex",alignItems:"center",gap:0,
-      padding:"0 20px",height:64,
-      borderBottom:`1px solid rgba(255,255,255,0.04)`,
-      cursor:"pointer",transition:"background 0.1s",position:"relative"
+      background:C.card,border:`1px solid ${C.border}`,borderRadius:12,
+      cursor:"pointer",transition:"all 0.15s",overflow:"hidden",position:"relative",
     }}
-      onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.03)"}
-      onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-      <div style={{width:28,flexShrink:0,textAlign:"center"}}>
-        <Label size={11} color={rank<=3?C.gold:"rgba(255,255,255,0.18)"} weight={700} mono>{rank}</Label>
-      </div>
-      <div style={{marginRight:12,flexShrink:0}}>
-        <Avatar sym={t.sym} pi={t.pi} size={36}/>
-      </div>
-      <div style={{width:130,flexShrink:0}}>
-        <Label size={14} color={C.text} weight={700} style={{display:"block",letterSpacing:"-0.02em"}}>{t.sym}</Label>
-        {t.name && t.name !== t.sym && <Label size={11} color={C.textQuat} style={{display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:120}}>{t.name}</Label>}
-      </div>
-      <div className="feed-hide-mobile" style={{width:72,flexShrink:0,marginRight:16}}>
-        <Spark data={spark} color={up?C.green:C.red} width={72} height={26}/>
-      </div>
-      <div style={{width:90,flexShrink:0}}>
-        <Label size={14} color={C.text} weight={600} mono style={{display:"block"}}>{fmt(t.mcap)}</Label>
-        <Label size={11} color={up?C.green:C.red} weight={500} mono>{up?"+":""}{t.chg.toFixed(1)}%</Label>
-      </div>
-      <div className="feed-hide-mobile" style={{width:72,flexShrink:0}}>
-        <Label size={11} color={C.textQuat} style={{display:"block",marginBottom:2}}>vol</Label>
-        <Label size={13} color={C.textSec} weight={500} mono>{t.vol}</Label>
-      </div>
-      <div className="feed-hide-mobile" style={{width:60,flexShrink:0}}>
-        <Label size={11} color={C.textQuat} style={{display:"block",marginBottom:2}}>holders</Label>
-        <Label size={13} color={C.textSec} weight={500} mono>{t.holders > 0 ? t.holders.toLocaleString() : "—"}</Label>
-      </div>
-      <div className="feed-hide-mobile" style={{flex:1,marginLeft:16}}>
+      onMouseEnter={e=>{e.currentTarget.style.borderColor=C.borderMd;e.currentTarget.style.transform="translateY(-1px)";}}
+      onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.transform="none";}}>
+
+      {/* Top accent line */}
+      <div style={{height:2,background:`linear-gradient(90deg,${p.a},${p.b})`}}/>
+
+      <div style={{padding:"14px 16px"}}>
+        {/* Header: avatar + name + age badge */}
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+          <Avatar sym={t.sym} pi={t.pi} size={38}/>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{display:"flex",alignItems:"center",gap:6}}>
+              <Label size={15} color={C.text} weight={700} style={{letterSpacing:"-0.02em"}}>{t.sym}</Label>
+              {isNew&&<span style={{fontSize:8,fontWeight:700,color:C.green,background:"rgba(34,197,94,0.12)",border:"1px solid rgba(34,197,94,0.25)",borderRadius:3,padding:"1px 5px",letterSpacing:"0.04em"}}>NEW</span>}
+              {t.graduated&&<span style={{fontSize:8,fontWeight:700,color:C.raydium,background:C.raydiumBg,border:`1px solid ${C.raydiumBd}`,borderRadius:3,padding:"1px 5px"}}>GRAD</span>}
+            </div>
+            <Label size={10} color={C.textQuat}>{fmtAge(t.age, t.elapsed)} ago</Label>
+          </div>
+          <div style={{textAlign:"right"}}>
+            <Label size={16} color={C.text} weight={700} mono style={{display:"block"}}>{fmt(t.mcap)}</Label>
+            <Label size={10} color={up?C.green:C.red} weight={600} mono>{up?"+":""}{t.chg.toFixed(1)}%</Label>
+          </div>
+        </div>
+
+        {/* Stats row */}
+        <div style={{display:"flex",gap:6,marginBottom:10}}>
+          <div style={{flex:1,background:"rgba(255,255,255,0.03)",borderRadius:6,padding:"6px 8px",textAlign:"center"}}>
+            <Label size={8} color={C.textQuat} style={{display:"block",textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:2}}>Vol</Label>
+            <Label size={12} color={C.text} weight={600} mono>{t.vol}</Label>
+          </div>
+          <div style={{flex:1,background:"rgba(255,255,255,0.03)",borderRadius:6,padding:"6px 8px",textAlign:"center"}}>
+            <Label size={8} color={C.textQuat} style={{display:"block",textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:2}}>Txns</Label>
+            <Label size={12} color={C.text} weight={600} mono>{t.txs}</Label>
+          </div>
+          <div style={{flex:1,background:"rgba(255,255,255,0.03)",borderRadius:6,padding:"6px 8px",textAlign:"center"}}>
+            <Label size={8} color={C.textQuat} style={{display:"block",textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:2}}>Holders</Label>
+            <Label size={12} color={C.text} weight={600} mono>{t.holders > 0 ? t.holders : "—"}</Label>
+          </div>
+        </div>
+
+        {/* Bonding progress */}
         {t.graduated?(
-          <div style={{display:"inline-flex",alignItems:"center",gap:6,padding:"4px 10px",
-            background:C.raydiumBg,border:`1px solid ${C.raydiumBd}`,borderRadius:20}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,padding:"6px 10px",background:C.raydiumBg,border:`1px solid ${C.raydiumBd}`,borderRadius:6}}>
             <div style={{width:5,height:5,borderRadius:"50%",background:C.raydium}}/>
-            <Label size={11} color={C.raydium} weight={600}>Raydium</Label>
+            <Label size={10} color={C.raydium} weight={600}>Graduated — on Raydium</Label>
           </div>
         ):(
           <div>
-            <div style={{height:3,background:"rgba(255,255,255,0.05)",borderRadius:99,overflow:"hidden",marginBottom:4}}>
-              <div style={{width:`${solPct}%`,height:"100%",background:barCol,borderRadius:99,transition:"width 1.2s ease"}}/>
+            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+              <Label size={9} color={C.textQuat}>{(t.raisedSOL||0).toFixed(1)} / 85 SOL</Label>
+              <Label size={9} color={barCol} weight={600}>{t.bondingFull?"Bonded":`${(85-(t.raisedSOL||0)).toFixed(1)} left`}</Label>
             </div>
-            <div style={{display:"flex",justifyContent:"space-between"}}>
-              <Label size={10} color={C.textQuat} mono>{(t.raisedSOL||0).toFixed(1)} / 85 SOL</Label>
-              <Label size={10} color={barCol}>{t.bondingFull?"bonded":(t.raisedSOL||0)>=60?"near grad":`${85-(t.raisedSOL||0)} left`}</Label>
+            <div style={{height:4,background:"rgba(255,255,255,0.06)",borderRadius:99,overflow:"hidden"}}>
+              <div style={{width:`${Math.max(solPct,1)}%`,height:"100%",background:barCol,borderRadius:99,transition:"width 0.8s ease"}}/>
             </div>
           </div>
         )}
-      </div>
-      <div style={{width:24,flexShrink:0,display:"flex",justifyContent:"center"}}>
-        {as.s==="live"&&<div style={{width:6,height:6,borderRadius:"50%",background:C.green,animation:"pulse 2s infinite"}}/>}
-        {as.s==="pending"&&<div style={{width:6,height:6,borderRadius:"50%",background:C.gold}}/>}
-        {t.topicLocked&&<div style={{width:6,height:6,borderRadius:"50%",background:C.teal}}/>}
       </div>
     </div>
   );
@@ -2997,54 +3002,36 @@ function TabFeed({tokens, onSelect}) {
   const active = tabs.find(t=>t.id===tab);
 
   return (
-    <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,overflow:"hidden"}}>
-      <div style={{display:"flex",borderBottom:`1px solid ${C.border}`,padding:"0 8px"}}>
+    <div>
+      {/* Tab bar */}
+      <div style={{display:"flex",gap:4,marginBottom:16,flexWrap:"wrap"}}>
         {tabs.map(t=>{
           const isActive = t.id===tab;
           return (
             <button key={t.id} onClick={()=>setTab(t.id)} style={{
-              position:"relative",height:46,padding:"0 16px",background:"transparent",border:"none",
-              cursor:"pointer",display:"flex",alignItems:"center",gap:7,transition:"opacity 0.15s",
-              opacity:isActive?1:0.45,
+              height:34,padding:"0 14px",background:isActive?`${t.color}15`:"transparent",
+              border:`1px solid ${isActive?t.color+"40":C.border}`,borderRadius:8,
+              cursor:"pointer",display:"flex",alignItems:"center",gap:6,transition:"all 0.15s",
             }}
-              onMouseEnter={e=>{if(!isActive)e.currentTarget.style.opacity="0.7"}}
-              onMouseLeave={e=>{if(!isActive)e.currentTarget.style.opacity="0.45"}}>
-              <Label size={13} color={isActive?t.color:C.textSec} weight={isActive?700:500}
-                style={{letterSpacing:"-0.02em"}}>{t.label}</Label>
-              <div style={{
-                padding:"1px 7px",borderRadius:20,
-                background:isActive?`${t.color}22`:"rgba(255,255,255,0.05)",
-                border:`1px solid ${isActive?t.color+"44":C.border}`,
-              }}>
-                <Label size={10} color={isActive?t.color:C.textQuat} weight={600}>{t.tokens.length}</Label>
-              </div>
-              {isActive&&<div style={{position:"absolute",bottom:0,left:8,right:8,height:2,
-                background:t.color,borderRadius:"2px 2px 0 0"}}/>}
+              onMouseEnter={e=>{if(!isActive){e.currentTarget.style.background="rgba(255,255,255,0.04)";e.currentTarget.style.borderColor=C.borderMd;}}}
+              onMouseLeave={e=>{if(!isActive){e.currentTarget.style.background="transparent";e.currentTarget.style.borderColor=C.border;}}}>
+              <Label size={12} color={isActive?t.color:C.textTer} weight={isActive?700:500}>{t.label}</Label>
+              <span style={{fontSize:10,fontWeight:600,color:isActive?t.color:C.textQuat,background:isActive?`${t.color}20`:"rgba(255,255,255,0.05)",padding:"1px 6px",borderRadius:10}}>{t.tokens.length}</span>
             </button>
           );
         })}
       </div>
-      <div className="feed-table-header" style={{display:"flex",alignItems:"center",gap:0,padding:"0 20px",height:32,
-        background:"rgba(255,255,255,0.02)",borderBottom:`1px solid rgba(255,255,255,0.04)`}}>
-        <div style={{width:28}}/>
-        <div style={{width:48,marginRight:12}}/>
-        <div style={{width:130}}><Label size={10} color={C.textQuat} style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Token</Label></div>
-        <div style={{width:72,marginRight:16}}/>
-        <div style={{width:90}}><Label size={10} color={C.textQuat} style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Market cap</Label></div>
-        <div style={{width:72}}><Label size={10} color={C.textQuat} style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Volume</Label></div>
-        <div style={{width:60}}><Label size={10} color={C.textQuat} style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Holders</Label></div>
-        <div style={{flex:1,marginLeft:16}}><Label size={10} color={C.textQuat} style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Bonding</Label></div>
-        <div style={{width:24}}/>
-      </div>
+
+      {/* Card grid */}
       {active.tokens.length>0?(
-        <div>
-          {active.tokens.map((t,i)=>(
-            <FeedRow key={t.id} t={t} onClick={onSelect} rank={i+1}/>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))",gap:10}}>
+          {active.tokens.map((t)=>(
+            <FeedCard key={t.id} t={t} onClick={onSelect}/>
           ))}
         </div>
       ):(
-        <div style={{padding:"48px 24px",textAlign:"center"}}>
-          <Label size={13} color={C.textQuat}>Nothing here yet</Label>
+        <div style={{padding:"60px 24px",textAlign:"center",background:C.card,border:`1px solid ${C.border}`,borderRadius:12}}>
+          <Label size={14} color={C.textQuat}>No tokens in this category yet</Label>
         </div>
       )}
     </div>
