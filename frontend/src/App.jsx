@@ -1313,28 +1313,21 @@ function TokenPage({t:tProp,onClose,connected,onConnect}) {
           </div>
           {/* Live trades table below chart */}
           <div style={{borderTop:`1px solid ${C.border}`,flexShrink:0,background:"rgba(0,0,0,0.25)",maxHeight:220,overflowY:"auto"}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",borderBottom:`1px solid rgba(255,255,255,0.04)`,position:"sticky",top:0,background:"rgba(13,12,11,0.95)",backdropFilter:"blur(8px)",zIndex:2}}>
-              <div style={{display:"flex",alignItems:"center",gap:6}}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.textTer} strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                <Label size={11} color={C.textSec} weight={600} style={{letterSpacing:"-0.01em"}}>Transactions</Label>
-              </div>
-              <div style={{display:"flex",alignItems:"center",gap:4}}>
-                <div style={{width:5,height:5,borderRadius:"50%",background:C.green,animation:"pulse 2s infinite"}}/>
-                <Label size={9} color={C.textQuat}>Live</Label>
-              </div>
-            </div>
             <ChartTradesTable mint={t.mint || t.mintAddress}/>
           </div>
-          <div style={{padding:"10px 16px",borderTop:`1px solid ${C.border}`,flexShrink:0,background:"rgba(0,0,0,0.3)"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-              <Label size={11} color={C.textTer}>Bonding curve</Label>
+          <div style={{padding:"12px 16px",borderTop:`1px solid ${C.border}`,flexShrink:0,background:"rgba(0,0,0,0.3)"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                <Label size={12} color={C.textSec} weight={600}>Bonding curve</Label>
+                <Label size={11} color={C.textQuat}>{(t.raisedSOL||0).toFixed(1)} / 85 SOL</Label>
+              </div>
               <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <Label size={12} color={p.a} weight={600}>{t.prog}%</Label>
+                <Label size={14} color={p.a} weight={700}>{t.prog}%</Label>
                 {t.graduated&&<div style={{background:C.raydiumBg,border:`1px solid ${C.raydiumBd}`,borderRadius:6,padding:"2px 8px"}}><Label size={10} color={C.raydium}>LP locked forever</Label></div>}
               </div>
             </div>
-            <div style={{height:5,background:"rgba(255,255,255,0.06)",borderRadius:99,overflow:"hidden"}}>
-              <div style={{width:`${t.prog}%`,height:"100%",borderRadius:99,background:`linear-gradient(90deg,${p.a},${p.b})`,boxShadow:`0 0 10px ${p.glow}`,transition:"width 0.5s ease"}}/>
+            <div style={{height:8,background:"rgba(255,255,255,0.08)",borderRadius:99,overflow:"hidden"}}>
+              <div style={{width:`${Math.max(t.prog, 1)}%`,height:"100%",borderRadius:99,background:`linear-gradient(90deg,${p.a},${p.b})`,boxShadow:`0 0 12px ${p.glow}`,transition:"width 0.5s ease"}}/>
             </div>
           </div>
         </div>
