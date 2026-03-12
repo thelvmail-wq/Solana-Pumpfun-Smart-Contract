@@ -909,6 +909,68 @@ function SwapPanel({t,connected,onConnect}) {
         }finally{setLoading(false);}})();}} full color={tab==="buy"?C.green:C.red} loading={loading} disabled={!amt||wouldExceed}>
         {!connected?"Connect wallet":wouldExceed?"Exceeds launch cap":`${tab==="buy"?"Buy":"Sell"}${amt?` ${amt} ${tab==="buy"?"SOL":"tokens"}`:""}`}
       </Btn>
+
+      {/* Token info section — fills empty space below swap */}
+      <div style={{marginTop:16,borderTop:`1px solid ${C.border}`,paddingTop:12}}>
+        {/* Price + MC row */}
+        <div style={{display:"flex",gap:8,marginBottom:10}}>
+          <div style={{flex:1,background:"rgba(255,255,255,0.03)",borderRadius:8,padding:"8px 10px"}}>
+            <Label size={9} color={C.textQuat} style={{display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Price</Label>
+            <Label size={13} color={C.text} weight={600} mono>{t.pricePerToken ? "$"+(t.pricePerToken*180).toFixed(8) : "—"}</Label>
+          </div>
+          <div style={{flex:1,background:"rgba(255,255,255,0.03)",borderRadius:8,padding:"8px 10px"}}>
+            <Label size={9} color={C.textQuat} style={{display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Market Cap</Label>
+            <Label size={13} color={C.text} weight={600} mono>{fmt(t.mcap)}</Label>
+          </div>
+        </div>
+
+        {/* Pool reserves */}
+        <div style={{display:"flex",gap:8,marginBottom:10}}>
+          <div style={{flex:1,background:"rgba(255,255,255,0.03)",borderRadius:8,padding:"8px 10px"}}>
+            <Label size={9} color={C.textQuat} style={{display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>SOL in Pool</Label>
+            <Label size={13} color={C.text} weight={600} mono>{(t.solReserve||0).toFixed(2)} SOL</Label>
+          </div>
+          <div style={{flex:1,background:"rgba(255,255,255,0.03)",borderRadius:8,padding:"8px 10px"}}>
+            <Label size={9} color={C.textQuat} style={{display:"block",marginBottom:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>Tokens in Pool</Label>
+            <Label size={13} color={C.text} weight={600} mono>{(t.tokenReserve||0) > 1e6 ? ((t.tokenReserve||0)/1e6).toFixed(1)+"M" : Math.floor(t.tokenReserve||0).toLocaleString()}</Label>
+          </div>
+        </div>
+
+        {/* Fee breakdown */}
+        <div style={{background:"rgba(255,255,255,0.03)",borderRadius:8,padding:"10px"}}>
+          <Label size={9} color={C.textQuat} style={{display:"block",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.05em"}}>Fee breakdown (1.5% per trade)</Label>
+          <div style={{display:"flex",gap:4,height:6,borderRadius:99,overflow:"hidden",marginBottom:6}}>
+            <div style={{flex:60,background:C.green,borderRadius:99}}/>
+            <div style={{flex:50,background:C.gold,borderRadius:99}}/>
+            <div style={{flex:40,background:C.textTer,borderRadius:99}}/>
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between"}}>
+            <div style={{display:"flex",alignItems:"center",gap:4}}>
+              <div style={{width:6,height:6,borderRadius:2,background:C.green}}/>
+              <Label size={9} color={C.textTer}>0.60% LP</Label>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:4}}>
+              <div style={{width:6,height:6,borderRadius:2,background:C.gold}}/>
+              <Label size={9} color={C.textTer}>0.50% Airdrop</Label>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:4}}>
+              <div style={{width:6,height:6,borderRadius:2,background:C.textTer}}/>
+              <Label size={9} color={C.textTer}>0.40% Protocol</Label>
+            </div>
+          </div>
+        </div>
+
+        {/* Contract address */}
+        <div style={{marginTop:10,background:"rgba(255,255,255,0.03)",borderRadius:8,padding:"8px 10px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+          <div style={{minWidth:0}}>
+            <Label size={9} color={C.textQuat} style={{display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.05em"}}>Contract</Label>
+            <Label size={10} color={C.textSec} mono style={{display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.mint}</Label>
+          </div>
+          <button onClick={()=>{navigator.clipboard.writeText(t.mint);}} style={{background:"rgba(255,255,255,0.06)",border:`1px solid ${C.border}`,borderRadius:4,padding:"4px 8px",cursor:"pointer",flexShrink:0}}>
+            <Label size={9} color={C.textTer}>Copy</Label>
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
