@@ -448,6 +448,33 @@ async function main() {
       console.error('Poll error:', e.message);
     }
   }, POLL_INTERVAL_MS);
+
+  // Health check HTTP server for Railway
+  const http = await import('http');
+  const PORT = process.env.PORT || 3001;
+  http.createServer((req, res) => {
+    if (req.url === '/health') {
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({ status: 'ok', uptime: process.uptime() }));
+    } else {
+      res.writeHead(200);
+      res.end('SUMMIT.MOON Indexer running');
+    }
+  }).listen(PORT, () => {
+    console.log(`Health check on port ${PORT}`);
+  });
 }
 
-main().catch(console.error);
+// Catch unhandled errors — log but don't crash
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err.message);
+  console.error(err.stack);
+});
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled rejection:', err?.message || err);
+});
+
+main().catch(e => {
+  console.error('Fatal error:', e.message);
+  process.exit(1);
+});
