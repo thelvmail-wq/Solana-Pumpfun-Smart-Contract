@@ -13,6 +13,7 @@ import { useState, useEffect, useRef } from "react";
 const FONT = `
   @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600&family=Geist+Mono:wght@300;400;500;600&display=swap');
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+  #root { max-width: none !important; margin: 0 !important; padding: 0 !important; width: 100% !important; }
   ::-webkit-scrollbar { display: none; }
   html { scroll-behavior: smooth; }
   body { background: #0d0c0b; }
