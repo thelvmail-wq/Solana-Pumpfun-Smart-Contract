@@ -2930,31 +2930,31 @@ function ScannerFeed({tokens, onSelect}) {
     const isNew = (t.elapsed||999) < 10;
     return (
       <div onClick={()=>onSelect(t)} style={{
-        display:"flex",alignItems:"center",gap:8,padding:"7px 10px",
+        display:"flex",alignItems:"center",gap:6,padding:"5px 8px",
         borderBottom:`1px solid rgba(255,255,255,0.04)`,cursor:"pointer",
         transition:"background 0.08s",
       }}
         onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.04)"}
         onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-        <Avatar sym={t.sym} pi={t.pi} size={28}/>
+        <Avatar sym={t.sym} pi={t.pi} size={24}/>
         <div style={{flex:1,minWidth:0}}>
-          <div style={{display:"flex",alignItems:"center",gap:4,marginBottom:1}}>
-            <Label size={12} color={C.text} weight={700} style={{letterSpacing:"-0.02em"}}>{t.sym}</Label>
-            {isNew&&<span style={{fontSize:7,fontWeight:800,color:C.green,background:"rgba(34,197,94,0.15)",borderRadius:2,padding:"0 3px",lineHeight:"12px"}}>NEW</span>}
+          <div style={{display:"flex",alignItems:"center",gap:3,marginBottom:0}}>
+            <Label size={11} color={C.text} weight={700} style={{letterSpacing:"-0.02em"}}>{t.sym}</Label>
+            {isNew&&<span style={{fontSize:6,fontWeight:800,color:C.green,background:"rgba(34,197,94,0.15)",borderRadius:2,padding:"0 2px",lineHeight:"10px"}}>NEW</span>}
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:6}}>
-            <Label size={10} color={C.textQuat} mono>{fmtAge(t.age, t.elapsed)}</Label>
-            <Label size={10} color={C.textTer} mono>{t.vol||"$0"}</Label>
-            {(t.txs||0)>0&&<Label size={9} color={C.textQuat} mono>TX {t.txs}</Label>}
+          <div style={{display:"flex",alignItems:"center",gap:4}}>
+            <Label size={9} color={C.textQuat} mono>{fmtAge(t.age, t.elapsed)}</Label>
+            <Label size={9} color={C.textTer} mono>{t.vol||"$0"}</Label>
+            {(t.txs||0)>0&&<Label size={8} color={C.textQuat} mono>{t.txs}tx</Label>}
           </div>
         </div>
         <div style={{textAlign:"right",flexShrink:0}}>
-          <Label size={12} color={C.text} weight={700} mono style={{display:"block"}}>{fmt(t.mcap||0)}</Label>
-          <div style={{display:"flex",alignItems:"center",gap:4,justifyContent:"flex-end",marginTop:2}}>
-            <div style={{width:40,height:3,background:"rgba(255,255,255,0.06)",borderRadius:99,overflow:"hidden"}}>
+          <Label size={11} color={C.text} weight={700} mono>{fmt(t.mcap||0)}</Label>
+          <div style={{display:"flex",alignItems:"center",gap:3,justifyContent:"flex-end",marginTop:1}}>
+            <div style={{width:32,height:2,background:"rgba(255,255,255,0.06)",borderRadius:99,overflow:"hidden"}}>
               <div style={{width:`${Math.max(solPct,2)}%`,height:"100%",background:barCol,borderRadius:99}}/>
             </div>
-            <Label size={8} color={barCol} mono weight={600}>{Math.round(solPct)}%</Label>
+            <Label size={7} color={barCol} mono weight={600}>{Math.round(solPct)}%</Label>
           </div>
         </div>
       </div>
@@ -2964,12 +2964,12 @@ function ScannerFeed({tokens, onSelect}) {
   return (
     <div style={{display:"grid",gridTemplateColumns:`repeat(${categories.length}, 1fr)`,gap:8,alignItems:"start"}}>
       {categories.map(cat => (
-        <div key={cat.id} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,overflow:"hidden"}}>
+        <div key={cat.id} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:6,overflow:"hidden",minHeight:200}}>
           {/* Column header */}
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",borderBottom:`1px solid ${C.border}`,background:"rgba(255,255,255,0.02)"}}>
-            <div style={{display:"flex",alignItems:"center",gap:6}}>
-              <div style={{width:3,height:14,borderRadius:2,background:cat.color}}/>
-              <Label size={11} color={cat.color} weight={700}>{cat.label}</Label>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 10px",borderBottom:`1px solid ${C.border}`,background:"rgba(255,255,255,0.02)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:5}}>
+              <div style={{width:3,height:12,borderRadius:2,background:cat.color}}/>
+              <Label size={10} color={cat.color} weight={700}>{cat.label}</Label>
             </div>
             <span style={{fontSize:10,color:C.textQuat,fontFamily:C.mono}}>{cat.tokens.length}</span>
           </div>
@@ -3104,7 +3104,7 @@ export default function SummitMoon() {
         </div>
       </div>
 
-      <div style={{padding:"10px 12px 80px"}}>
+      <div style={{padding:"8px 16px 80px"}}>
         <ScannerFeed tokens={tokens} onSelect={setSelected}/>
       </div>
 
