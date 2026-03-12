@@ -290,7 +290,7 @@ export async function fetchDeployedTokens() {
     const accounts = await connection.getProgramAccounts(PROGRAM_ID, {
       filters: [{ dataSize: 202 }]
     })
-    console.log(`fetchDeployedTokens: found ${accounts.length} registries`)
+      console.log(`fetchDeployedTokens: found ${accounts.length} registries`)
     return accounts.map(({ pubkey, account }) => {
       const data = account.data
       const mint = new PublicKey(data.slice(8, 40))
@@ -305,7 +305,7 @@ export async function fetchDeployedTokens() {
       const ageMins = Math.floor(ageMs / 60000)
       const ageDays = Math.floor(ageMs / 86400000)
 
-      console.log(`  Token: ${ticker || 'UNKNOWN'} | mint: ${mint.toBase58().slice(0,8)}... | age: ${ageMins}m`)
+      // Token debug logging removed for production
 
       return {
         id: mint.toBase58(),
@@ -355,11 +355,11 @@ export async function fetchPoolData(mintPubkey) {
     const [pool] = getPoolPDA(mint)
     const acct = await connection.getAccountInfo(pool)
     if (!acct) {
-      console.log(`  Pool not found for mint ${mintPubkey.slice(0,8)}... (pool: ${pool.toBase58().slice(0,8)}...)`)
+      // console.log(`  Pool not found for mint ${mintPubkey.slice(0,8)}... (pool: ${pool.toBase58().slice(0,8)}...)`)
       return null
     }
     if (acct.data.length < 154) {
-      console.log(`  Pool data too short for mint ${mintPubkey.slice(0,8)}...: ${acct.data.length} bytes`)
+      // console.log(`  Pool data too short for mint ${mintPubkey.slice(0,8)}...: ${acct.data.length} bytes`)
       return null
     }
     const d = acct.data
@@ -406,7 +406,7 @@ export async function fetchAllTokensWithPools() {
   const enriched = await Promise.all(tokens.map(async (t, idx) => {
     const acct = poolAccounts[idx]
     if (!acct || acct.data.length < 154) {
-      if (!acct) console.log(`  No pool for ${t.sym} (${t.mint.slice(0,8)}...)`)
+      if (!acct) // console.log(`  No pool for ${t.sym} (${t.mint.slice(0,8)}...)`)
       return { ...t, hasPool: false }
     }
 
