@@ -811,7 +811,7 @@ function SwapPanel({t,connected,onConnect}) {
           ))}
         </div>
         <button onClick={()=>setShowSettings(!showSettings)} style={{width:34,height:34,borderRadius:8,border:`1px solid ${showSettings?C.borderHi:C.border}`,background:showSettings?"rgba(255,255,255,0.06)":"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={showSettings?C.text:C.textTer} strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={showSettings?"rgba(255,248,235,0.7)":"rgba(255,248,235,0.35)"} strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
         </button>
       </div>
 
@@ -1014,6 +1014,65 @@ function DexBadge({sym}) {
   );
 }
 
+// ===== COMPACT TRADES TABLE (below chart) =====
+
+function ChartTradesTable({mint}) {
+  const [trades, setTrades] = useState([]);
+
+  useEffect(() => {
+    if (!mint) return;
+    const load = () => {
+      import('./solana.js').then(({fetchRecentTrades}) => {
+        fetchRecentTrades(mint, 10).then(data => {
+          if (data && data.length > 0) setTrades(data);
+        }).catch(() => {});
+      });
+    };
+    load();
+    const interval = setInterval(load, 15000);
+    return () => clearInterval(interval);
+  }, [mint]);
+
+  if (trades.length === 0) return (
+    <div style={{padding:"12px 16px",textAlign:"center"}}>
+      <Label size={10} color={C.textQuat}>No trades yet</Label>
+    </div>
+  );
+
+  return (
+    <div>
+      <div style={{display:"flex",padding:"4px 16px",gap:0}}>
+        <div style={{width:50}}><Label size={9} color={C.textQuat}>Type</Label></div>
+        <div style={{flex:1}}><Label size={9} color={C.textQuat}>Amount</Label></div>
+        <div style={{width:80,textAlign:"right"}}><Label size={9} color={C.textQuat}>Wallet</Label></div>
+        <div style={{width:50,textAlign:"right"}}><Label size={9} color={C.textQuat}>Time</Label></div>
+      </div>
+      {trades.map((tr, i) => {
+        const isBuy = tr.side === 'buy';
+        const timeAgo = Math.floor((Date.now() - new Date(tr.timestamp).getTime()) / 60000);
+        const timeStr = timeAgo < 1 ? 'now' : timeAgo < 60 ? `${timeAgo}m` : timeAgo < 1440 ? `${Math.floor(timeAgo/60)}h` : `${Math.floor(timeAgo/1440)}d`;
+        return (
+          <div key={tr.tx_sig || i} style={{display:"flex",alignItems:"center",padding:"4px 16px",gap:0,borderTop:i>0?`1px solid rgba(255,255,255,0.03)`:"none"}}>
+            <div style={{width:50,display:"flex",alignItems:"center",gap:4}}>
+              <div style={{width:5,height:5,borderRadius:"50%",background:isBuy?C.green:C.red}}/>
+              <Label size={10} color={isBuy?C.green:C.red} weight={600}>{isBuy?"BUY":"SELL"}</Label>
+            </div>
+            <div style={{flex:1}}>
+              <Label size={10} color={C.text} mono weight={500}>{parseFloat(tr.sol_amount).toFixed(4)} SOL</Label>
+            </div>
+            <div style={{width:80,textAlign:"right"}}>
+              <Label size={10} color={C.textQuat} mono>{tr.wallet?.slice(0,4)}..{tr.wallet?.slice(-3)}</Label>
+            </div>
+            <div style={{width:50,textAlign:"right"}}>
+              <Label size={10} color={C.textQuat}>{timeStr}</Label>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ===== TRADES TAB =====
 
 function TradesTab({t}) {
@@ -1203,6 +1262,14 @@ function TokenPage({t:tProp,onClose,connected,onConnect}) {
                 <Label size={12} color={C.text} weight={500}>{s[1]}</Label>
               </div>
             ))}
+          </div>
+          {/* Live trades table below chart */}
+          <div style={{borderTop:`1px solid ${C.border}`,flexShrink:0,background:"rgba(0,0,0,0.25)",maxHeight:160,overflowY:"auto"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 16px",borderBottom:`1px solid rgba(255,255,255,0.04)`}}>
+              <Label size={10} color={C.textTer} style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Recent trades</Label>
+              <Label size={9} color={C.textQuat}>Live</Label>
+            </div>
+            <ChartTradesTable mint={t.mint || t.mintAddress}/>
           </div>
           <div style={{padding:"10px 16px",borderTop:`1px solid ${C.border}`,flexShrink:0,background:"rgba(0,0,0,0.3)"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
