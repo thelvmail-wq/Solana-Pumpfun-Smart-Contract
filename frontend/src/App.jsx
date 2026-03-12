@@ -879,7 +879,7 @@ function Card({t,onClick,rank}) {
       {t.topicLocked&&<TopicChip source={t.topicSource} title={t.topicTitle}/>}
       <div style={{display:"flex",gap:5,marginTop:8,flexWrap:"wrap",alignItems:"center"}}>
         <Tag color={p.a}>{t.vol}</Tag>
-        <Tag color={C.textTer}>{t.holders.toLocaleString()} holders</Tag>
+        <Tag color={C.textTer}>{t.holders > 0 ? t.holders.toLocaleString() : "—"} holders</Tag>
         {as.s==="live"&&<Tag color={C.green}>Rewards live</Tag>}
         {as.s==="pending"&&<Tag color={C.gold}>Snapshot {as.minsLeft}m</Tag>}
         {t.graduated&&<Tag color={C.raydium}>On Raydium</Tag>}
@@ -951,12 +951,22 @@ function DexBadge({sym}) {
 
 // ===== FULL TOKEN PAGE =====
 
-function TokenPage({t,onClose,connected,onConnect}) {
-  t={...t,txs:t.txs||0,vol:t.vol||"$0",volRaw:t.volRaw||0,holders:t.holders||0,prog:t.prog||0,age:t.age||0,raisedSOL:t.raisedSOL||0,raisedSOLMax:t.raisedSOLMax||85,elapsed:t.elapsed||0,mcap:t.mcap||0,chg:t.chg||0,bondingFull:t.bondingFull||false,graduated:t.graduated||false,topicLocked:t.topicLocked||false,sym:t.sym||"???",name:t.name||t.sym||"Unknown",desc:t.desc||"",minsAgo:t.minsAgo||0,pi:t.pi||0,mint:t.mint||t.id,mintAddress:t.mintAddress||t.mint||t.id};
+function TokenPage({t:tProp,onClose,connected,onConnect}) {
+  const [tokenData, setTokenData] = useState(tProp);
+  const t={...tokenData,txs:tokenData.txs||0,vol:tokenData.vol||"$0",volRaw:tokenData.volRaw||0,holders:tokenData.holders||0,prog:tokenData.prog||0,age:tokenData.age||0,raisedSOL:tokenData.raisedSOL||0,raisedSOLMax:tokenData.raisedSOLMax||85,elapsed:tokenData.elapsed||0,mcap:tokenData.mcap||0,chg:tokenData.chg||0,bondingFull:tokenData.bondingFull||false,graduated:tokenData.graduated||false,topicLocked:tokenData.topicLocked||false,sym:tokenData.sym||"???",name:tokenData.name||tokenData.sym||"Unknown",desc:tokenData.desc||"",minsAgo:tokenData.minsAgo||0,pi:tokenData.pi||0,mint:tokenData.mint||tokenData.id,mintAddress:tokenData.mintAddress||tokenData.mint||tokenData.id};
   const [range,setRange]=useState("1H");
   const [rightTab,setRightTab]=useState("swap");
   const [candles,setCandles]=useState(()=>genCandles(80,0.00004+Math.random()*0.0001));
   const [hasRealCandles,setHasRealCandles]=useState(false);
+
+  // Fetch real holder count on page open
+  useEffect(()=>{
+    const mintStr = t.mint || t.mintAddress;
+    if(!mintStr) return;
+    fetchHolderCount(mintStr).then(count => {
+      if(count > 0) setTokenData(prev => ({...prev, holders: count}));
+    }).catch(()=>{});
+  }, [t.mint, t.mintAddress]);
 
   // Map UI range to Supabase timeframe
   const tfMap = {"5M":"5m","15M":"15m","1H":"1h","4H":"4h","1D":"1d"};
@@ -1067,7 +1077,7 @@ function TokenPage({t,onClose,connected,onConnect}) {
             )}
           </div>
           <div style={{borderTop:`1px solid ${C.border}`,padding:"10px 16px",display:"flex",gap:0,flexShrink:0,background:"rgba(0,0,0,0.4)"}}>
-            {[["Volume",t.vol],["Txns",t.txs.toLocaleString()],["Holders",t.holders.toLocaleString()],["Multiplier",`${mil.multi}x`],["Age",fmtAge(t.age, t.elapsed)],["Raised",`${(t.raisedSOL||0).toFixed(1)}/${t.raisedSOLMax||85} SOL`]].map((s,i,a)=>(
+            {[["Volume",t.vol],["Txns",t.txs.toLocaleString()],["Holders",t.holders > 0 ? t.holders.toLocaleString() : "—"],["Multiplier",`${mil.multi}x`],["Age",fmtAge(t.age, t.elapsed)],["Raised",`${(t.raisedSOL||0).toFixed(1)}/${t.raisedSOLMax||85} SOL`]].map((s,i,a)=>(
               <div key={s[0]} style={{flex:1,paddingRight:i<a.length-1?12:0,borderRight:i<a.length-1?`1px solid ${C.border}`:"none",paddingLeft:i>0?12:0}}>
                 <Label size={10} color={C.textTer} style={{display:"block",marginBottom:3,letterSpacing:0.3}}>{s[0]}</Label>
                 <Label size={12} color={C.text} weight={500}>{s[1]}</Label>
@@ -2307,7 +2317,7 @@ function FeedRow({t, onClick, rank}) {
       </div>
       <div style={{width:60,flexShrink:0}}>
         <Label size={11} color={C.textQuat} style={{display:"block",marginBottom:2}}>holders</Label>
-        <Label size={13} color={C.textSec} weight={500} mono>{t.holders.toLocaleString()}</Label>
+        <Label size={13} color={C.textSec} weight={500} mono>{t.holders > 0 ? t.holders.toLocaleString() : "—"}</Label>
       </div>
       <div style={{flex:1,marginLeft:16}}>
         {t.graduated?(
