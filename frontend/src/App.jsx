@@ -25,6 +25,13 @@ const FONT = `
   @keyframes slideUp  { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:none; } }
   @keyframes scaleIn  { from { opacity:0; transform:scale(0.96); } to { opacity:1; transform:scale(1); } }
   @keyframes shimmer  { from { background-position: -200% 0; } to { background-position: 200% 0; } }
+  @media (max-width: 640px) {
+    .feed-row { padding: 12px 10px !important; }
+    .feed-table-header { display: none !important; }
+    .feed-hide-mobile { display: none !important; }
+    .feed-token-name { font-size: 13px !important; }
+    .nav-desktop-only { display: none !important; }
+  }
 `;
 
 // ── Warm dark palette — editorial luxury ───────────────────────
@@ -841,7 +848,36 @@ function SwapPanel({t,connected,onConnect}) {
         <Label size={10} color={C.gold}>0.50% of every trade → quarterly USDC airdrop. All holders earn by balance. No staking, automatic.</Label>
       </div>
 
-      <Btn onClick={()=>{if(!connected){onConnect();return;}if(wouldExceed)return;setLoading(true);(async()=>{try{const provider=window?.solana;const mintStr=t.mint||t.mintAddress;if(!mintStr){alert("No mint address — token not yet on-chain");setLoading(false);return;}const mintPk=new (await import('@solana/web3.js')).PublicKey(mintStr);const tx=await buildSwapTx(provider.publicKey,mintPk,parseFloat(amt),tab==="buy");tx.feePayer=provider.publicKey;const {blockhash}=await connection.getLatestBlockhash();tx.recentBlockhash=blockhash;const signed=await provider.signTransaction(tx);const sig=await connection.sendRawTransaction(signed.serialize());await connection.confirmTransaction(sig);setDone(true);}catch(e){console.error(e);alert(e.message);}finally{setLoading(false);}})();}} full color={tab==="buy"?C.green:C.red} loading={loading} disabled={!amt||wouldExceed}>
+      <Btn onClick={()=>{if(!connected){onConnect();return;}if(wouldExceed)return;
+        // Slippage check
+        if(impact && parseFloat(impact.impact) > 15) {
+          if(!window.confirm(`Price impact is ${impact.impact}%. Continue anyway?`)) return;
+        }
+        setLoading(true);(async()=>{try{
+          const provider=window?.solana;
+          const mintStr=t.mint||t.mintAddress;
+          if(!mintStr){alert("No mint address — token not yet on-chain");setLoading(false);return;}
+          const mintPk=new (await import('@solana/web3.js')).PublicKey(mintStr);
+          const tx=await buildSwapTx(provider.publicKey,mintPk,parseFloat(amt),tab==="buy");
+          tx.feePayer=provider.publicKey;
+          const {blockhash,lastValidBlockHeight}=await connection.getLatestBlockhash();
+          tx.recentBlockhash=blockhash;
+          const signed=await provider.signTransaction(tx);
+          const sig=await connection.sendRawTransaction(signed.serialize());
+          const result=await connection.confirmTransaction({signature:sig,blockhash,lastValidBlockHeight},"confirmed");
+          if(result?.value?.err){
+            throw new Error("Transaction failed on-chain. You may have insufficient SOL or the pool state changed.");
+          }
+          setDone(true);
+        }catch(e){
+          console.error("Swap error:",e);
+          const msg=e.message||"";
+          if(msg.includes("0x1")) alert("Swap failed: Insufficient balance.");
+          else if(msg.includes("0x0")) alert("Swap failed: Transaction simulation failed. Try a smaller amount.");
+          else if(msg.includes("User rejected")) alert("Transaction cancelled.");
+          else if(msg.includes("blockhash")) alert("Transaction expired. Please try again.");
+          else alert("Swap failed: "+msg.slice(0,120));
+        }finally{setLoading(false);}})();}} full color={tab==="buy"?C.green:C.red} loading={loading} disabled={!amt||wouldExceed}>
         {!connected?"Connect wallet":wouldExceed?"Exceeds launch cap":`${tab==="buy"?"Buy":"Sell"}${amt?` ${amt} ${tab==="buy"?"SOL":"tokens"}`:""}`}
       </Btn>
     </div>
@@ -2338,22 +2374,22 @@ function FeedRow({t, onClick, rank}) {
         <Label size={14} color={C.text} weight={700} style={{display:"block",letterSpacing:"-0.02em"}}>{t.sym}</Label>
         {t.name && t.name !== t.sym && <Label size={11} color={C.textQuat} style={{display:"block",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:120}}>{t.name}</Label>}
       </div>
-      <div style={{width:72,flexShrink:0,marginRight:16}}>
+      <div className="feed-hide-mobile" style={{width:72,flexShrink:0,marginRight:16}}>
         <Spark data={spark} color={up?C.green:C.red} width={72} height={26}/>
       </div>
       <div style={{width:90,flexShrink:0}}>
         <Label size={14} color={C.text} weight={600} mono style={{display:"block"}}>{fmt(t.mcap)}</Label>
         <Label size={11} color={up?C.green:C.red} weight={500} mono>{up?"+":""}{t.chg.toFixed(1)}%</Label>
       </div>
-      <div style={{width:72,flexShrink:0}}>
+      <div className="feed-hide-mobile" style={{width:72,flexShrink:0}}>
         <Label size={11} color={C.textQuat} style={{display:"block",marginBottom:2}}>vol</Label>
         <Label size={13} color={C.textSec} weight={500} mono>{t.vol}</Label>
       </div>
-      <div style={{width:60,flexShrink:0}}>
+      <div className="feed-hide-mobile" style={{width:60,flexShrink:0}}>
         <Label size={11} color={C.textQuat} style={{display:"block",marginBottom:2}}>holders</Label>
         <Label size={13} color={C.textSec} weight={500} mono>{t.holders > 0 ? t.holders.toLocaleString() : "—"}</Label>
       </div>
-      <div style={{flex:1,marginLeft:16}}>
+      <div className="feed-hide-mobile" style={{flex:1,marginLeft:16}}>
         {t.graduated?(
           <div style={{display:"inline-flex",alignItems:"center",gap:6,padding:"4px 10px",
             background:C.raydiumBg,border:`1px solid ${C.raydiumBd}`,borderRadius:20}}>
@@ -2422,7 +2458,7 @@ function TabFeed({tokens, onSelect}) {
           );
         })}
       </div>
-      <div style={{display:"flex",alignItems:"center",gap:0,padding:"0 20px",height:32,
+      <div className="feed-table-header" style={{display:"flex",alignItems:"center",gap:0,padding:"0 20px",height:32,
         background:"rgba(255,255,255,0.02)",borderBottom:`1px solid rgba(255,255,255,0.04)`}}>
         <div style={{width:28}}/>
         <div style={{width:48,marginRight:12}}/>
