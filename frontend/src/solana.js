@@ -354,7 +354,14 @@ export async function fetchPoolData(mintPubkey) {
     const mint = new PublicKey(mintPubkey)
     const [pool] = getPoolPDA(mint)
     const acct = await connection.getAccountInfo(pool)
-    if (!acct) return null
+    if (!acct) {
+      console.log(`  Pool not found for mint ${mintPubkey.slice(0,8)}... (pool: ${pool.toBase58().slice(0,8)}...)`)
+      return null
+    }
+    if (acct.data.length < 154) {
+      console.log(`  Pool data too short for mint ${mintPubkey.slice(0,8)}...: ${acct.data.length} bytes`)
+      return null
+    }
     const d = acct.data
     const reserveOne = Number(d.readBigUInt64LE(80))
     const reserveTwo = Number(d.readBigUInt64LE(88))
@@ -377,7 +384,7 @@ export async function fetchPoolData(mintPubkey) {
       prog: Math.min(100, Math.round((raisedSOL / 85) * 100)),
     }
   } catch (e) {
-    console.error("fetchPoolData error:", e.message)
+    console.error(`fetchPoolData error for ${mintPubkey.slice(0,8)}...:`, e.message)
     return null
   }
 }
@@ -385,44 +392,67 @@ export async function fetchPoolData(mintPubkey) {
 // Fetch all tokens with real pool stats + holder count + trade stats
 export async function fetchAllTokensWithPools() {
   const tokens = await fetchDeployedTokens()
-  const enriched = await Promise.all(tokens.map(async (t) => {
-    const pool = await fetchPoolData(t.mint)
-    if (pool) {
-      const holders = await fetchHolderCount(t.mint)
-      const stats = await fetchTradeStats(t.mint)
+  
+  // Batch fetch pool accounts in one RPC call using getMultipleAccountsInfo
+  const poolPDAs = tokens.map(t => getPoolPDA(new PublicKey(t.mint))[0])
+  let poolAccounts
+  try {
+    poolAccounts = await connection.getMultipleAccountsInfo(poolPDAs)
+  } catch (e) {
+    console.error('Batch pool fetch error:', e.message)
+    poolAccounts = new Array(tokens.length).fill(null)
+  }
 
+  const enriched = await Promise.all(tokens.map(async (t, idx) => {
+    const acct = poolAccounts[idx]
+    if (!acct || acct.data.length < 154) {
+      if (!acct) console.log(`  No pool for ${t.sym} (${t.mint.slice(0,8)}...)`)
+      return { ...t, hasPool: false }
+    }
+
+    try {
+      const d = acct.data
+      const reserveOne = Number(d.readBigUInt64LE(80))
+      const reserveTwo = Number(d.readBigUInt64LE(88))
+      const launchTs = Number(d.readBigInt64LE(97))
+      const graduated = d[105] === 1
+      const totalSolRaised = Number(d.readBigUInt64LE(106))
+      const creator = new PublicKey(d.slice(114, 146))
+      const airdropPool = Number(d.readBigUInt64LE(146))
+      const solReserve = reserveTwo / 1e9
+      const tokenReserve = reserveOne / 1e9
       const solPrice = 180
+      const raisedSOL = totalSolRaised / 1e9
+      const pricePerToken = reserveOne > 0 ? reserveTwo / reserveOne : 0
+      const mcap = reserveOne > 0 ? Math.round((reserveTwo / reserveOne) * 1e9 * solPrice) : 0
+
+      // Fetch holders + stats (these are lightweight calls)
+      const [holders, stats] = await Promise.all([
+        fetchHolderCount(t.mint),
+        fetchTradeStats(t.mint),
+      ])
+
       const volUsd = stats.totalSolVolume * solPrice
       const v = volUsd > 1e6 ? "$"+(volUsd/1e6).toFixed(1)+"M" : volUsd > 1e3 ? "$"+(volUsd/1e3).toFixed(0)+"K" : "$"+Math.round(volUsd)
 
       const nowSec = Math.floor(Date.now() / 1000)
-      const ageSec = nowSec - pool.launchTs
+      const ageSec = nowSec - launchTs
       const ageDays = Math.max(0, Math.floor(ageSec / 86400))
       const ageMins = Math.max(0, Math.floor(ageSec / 60))
 
       return {
         ...t,
-        mcap: pool.mcap,
-        raisedSOL: pool.raisedSOL,
-        bondingFull: pool.bondingFull,
-        graduated: pool.graduated,
-        prog: pool.prog,
-        hasPool: true,
-        vol: v,
-        volRaw: volUsd,
-        pricePerToken: pool.pricePerToken,
-        solReserve: pool.solReserve,
-        tokenReserve: pool.tokenReserve,
-        airdropPool: pool.airdropPool,
-        launchTs: pool.launchTs,
-        holders: holders,
-        txs: stats.totalTrades,
-        age: ageDays,
-        elapsed: ageMins,
-        minsAgo: ageMins,
+        mcap, raisedSOL, bondingFull: raisedSOL >= 85, graduated,
+        prog: Math.min(100, Math.round((raisedSOL / 85) * 100)),
+        hasPool: true, vol: v, volRaw: volUsd, pricePerToken,
+        solReserve, tokenReserve, airdropPool: airdropPool / 1e9,
+        launchTs, holders, txs: stats.totalTrades,
+        age: ageDays, elapsed: ageMins, minsAgo: ageMins,
       }
+    } catch (e) {
+      console.error(`Pool parse error for ${t.sym}:`, e.message)
+      return { ...t, hasPool: false }
     }
-    return { ...t, hasPool: false }
   }))
   return enriched
 }
