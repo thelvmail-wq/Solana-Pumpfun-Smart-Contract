@@ -1183,6 +1183,153 @@ function ChartTradesTable({mint}) {
   );
 }
 
+// ===== REWARDS TAB =====
+
+function RewardsTab({t, connected, onConnect}) {
+  // Mock data when connected — real data comes from Supabase points system
+  const holding = connected ? 0 : 0; // will be fetched from wallet token balance
+  const holdingUsd = holding * (t.pricePerToken || 0) * 180;
+  const daysHeld = 0;
+
+  // Tier calculation
+  const getTier = (usd) => {
+    if (usd >= 100000) return { level: 5, label: "Diamond", pts: 250, color: "#b8f2e6", next: null };
+    if (usd >= 10000) return { level: 4, label: "Platinum", pts: 150, color: C.gold, next: "$100K" };
+    if (usd >= 1000) return { level: 3, label: "Gold", pts: 80, color: "#f59e0b", next: "$10K" };
+    if (usd >= 100) return { level: 2, label: "Silver", pts: 30, color: "#94a3b8", next: "$1K" };
+    return { level: 1, label: "Bronze", pts: 10, color: "#cd7f32", next: "$100" };
+  };
+
+  const getTimeMult = (days) => {
+    if (days >= 30) return { mult: 2.0, label: "Diamond hands", next: null };
+    if (days >= 7) return { mult: 1.5, label: "Committed", next: "30d" };
+    if (days >= 1) return { mult: 1.0, label: "Standard", next: "7d" };
+    return { mult: 0.5, label: "New", next: "1d" };
+  };
+
+  const tier = getTier(holdingUsd);
+  const timeMult = getTimeMult(daysHeld);
+  const dailyPts = tier.pts * timeMult.mult;
+  const totalPts = dailyPts * Math.max(daysHeld, 1);
+
+  if (!connected) return (
+    <div style={{animation:"fadeUp 0.15s ease",textAlign:"center",padding:"24px 8px"}}>
+      <div style={{width:48,height:48,borderRadius:12,background:"rgba(201,168,76,0.1)",border:`1px solid rgba(201,168,76,0.2)`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px"}}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2z"/></svg>
+      </div>
+      <Label size={14} color={C.text} weight={600} style={{display:"block",marginBottom:6}}>Earn USDC by holding</Label>
+      <Label size={11} color={C.textTer} style={{display:"block",lineHeight:1.6,marginBottom:16}}>Hold any token on summit.moon and earn points toward the quarterly USDC airdrop. Bigger bags + longer holds = more rewards.</Label>
+      <Btn onClick={onConnect} full color={C.gold}>Connect wallet to view rewards</Btn>
+
+      {/* Tier table — always visible */}
+      <div style={{marginTop:20,textAlign:"left"}}>
+        <Label size={10} color={C.textQuat} style={{display:"block",marginBottom:8,textTransform:"uppercase",letterSpacing:"0.05em"}}>Point tiers</Label>
+        {[
+          { range: "$0 – $100", pts: "10 pts/day", tier: "Bronze", color: "#cd7f32" },
+          { range: "$100 – $1K", pts: "30 pts/day", tier: "Silver", color: "#94a3b8" },
+          { range: "$1K – $10K", pts: "80 pts/day", tier: "Gold", color: "#f59e0b" },
+          { range: "$10K – $100K", pts: "150 pts/day", tier: "Platinum", color: C.gold },
+          { range: "$100K+", pts: "250 pts/day", tier: "Diamond", color: "#b8f2e6" },
+        ].map((row, i) => (
+          <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 8px",background:i%2===0?"rgba(255,255,255,0.02)":"transparent",borderRadius:4}}>
+            <div style={{display:"flex",alignItems:"center",gap:6}}>
+              <div style={{width:6,height:6,borderRadius:2,background:row.color}}/>
+              <Label size={10} color={C.textSec}>{row.tier}</Label>
+            </div>
+            <Label size={10} color={C.textTer}>{row.range}</Label>
+            <Label size={10} color={C.text} weight={600} mono>{row.pts}</Label>
+          </div>
+        ))}
+
+        <Label size={10} color={C.textQuat} style={{display:"block",marginTop:12,marginBottom:8,textTransform:"uppercase",letterSpacing:"0.05em"}}>Loyalty multiplier</Label>
+        {[
+          { range: "< 1 day", mult: "0.5x", label: "New" },
+          { range: "1 – 7 days", mult: "1.0x", label: "Standard" },
+          { range: "7 – 30 days", mult: "1.5x", label: "Committed" },
+          { range: "30+ days", mult: "2.0x", label: "Diamond hands" },
+        ].map((row, i) => (
+          <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 8px",background:i%2===0?"rgba(255,255,255,0.02)":"transparent",borderRadius:4}}>
+            <Label size={10} color={C.textSec}>{row.label}</Label>
+            <Label size={10} color={C.textTer}>{row.range}</Label>
+            <Label size={10} color={C.gold} weight={600} mono>{row.mult}</Label>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  // Connected state
+  return (
+    <div style={{animation:"fadeUp 0.15s ease"}}>
+      {/* Your rewards summary */}
+      <div style={{background:`linear-gradient(135deg, rgba(201,168,76,0.08), rgba(201,168,76,0.02))`,border:`1px solid rgba(201,168,76,0.15)`,borderRadius:10,padding:"14px",marginBottom:12}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+          <div>
+            <Label size={9} color={C.textQuat} style={{display:"block",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:2}}>Your points (this token)</Label>
+            <Label size={24} color={C.gold} weight={700} mono>{totalPts.toLocaleString()}</Label>
+          </div>
+          <div style={{padding:"3px 8px",background:`${tier.color}18`,border:`1px solid ${tier.color}33`,borderRadius:6}}>
+            <Label size={10} color={tier.color} weight={700}>{tier.label}</Label>
+          </div>
+        </div>
+
+        <div style={{display:"flex",gap:8}}>
+          <div style={{flex:1,background:"rgba(0,0,0,0.2)",borderRadius:6,padding:"8px"}}>
+            <Label size={9} color={C.textQuat} style={{display:"block",marginBottom:2}}>Daily rate</Label>
+            <Label size={13} color={C.text} weight={600} mono>{dailyPts} pts</Label>
+          </div>
+          <div style={{flex:1,background:"rgba(0,0,0,0.2)",borderRadius:6,padding:"8px"}}>
+            <Label size={9} color={C.textQuat} style={{display:"block",marginBottom:2}}>Multiplier</Label>
+            <Label size={13} color={C.gold} weight={600} mono>{timeMult.mult}x</Label>
+          </div>
+          <div style={{flex:1,background:"rgba(0,0,0,0.2)",borderRadius:6,padding:"8px"}}>
+            <Label size={9} color={C.textQuat} style={{display:"block",marginBottom:2}}>Days held</Label>
+            <Label size={13} color={C.text} weight={600} mono>{daysHeld}</Label>
+          </div>
+        </div>
+      </div>
+
+      {/* Your holding */}
+      <div style={{background:"rgba(255,255,255,0.03)",borderRadius:8,padding:"10px",marginBottom:10}}>
+        <Label size={9} color={C.textQuat} style={{display:"block",marginBottom:4,textTransform:"uppercase",letterSpacing:"0.05em"}}>Your holding</Label>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
+          <Label size={14} color={C.text} weight={600} mono>{holding > 0 ? holding.toLocaleString() : "0"} {t.sym}</Label>
+          <Label size={12} color={C.textTer} mono>{holdingUsd > 0 ? "$"+holdingUsd.toFixed(2) : "$0.00"}</Label>
+        </div>
+      </div>
+
+      {/* Next tier progress */}
+      {tier.next && (
+        <div style={{background:"rgba(255,255,255,0.03)",borderRadius:8,padding:"10px",marginBottom:10}}>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+            <Label size={9} color={C.textQuat} style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Next tier</Label>
+            <Label size={10} color={tier.color} weight={600}>{tier.next} to unlock</Label>
+          </div>
+          <div style={{height:4,background:"rgba(255,255,255,0.06)",borderRadius:99,overflow:"hidden"}}>
+            <div style={{width:`${Math.min(100, (holdingUsd / parseFloat(tier.next.replace(/[$K]/g,'')) / (tier.next.includes('K')?1000:1)) * 100)}%`,height:"100%",background:tier.color,borderRadius:99,transition:"width 0.5s"}}/>
+          </div>
+        </div>
+      )}
+
+      {/* Time multiplier progress */}
+      {timeMult.next && (
+        <div style={{background:"rgba(255,255,255,0.03)",borderRadius:8,padding:"10px",marginBottom:10}}>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+            <Label size={9} color={C.textQuat} style={{textTransform:"uppercase",letterSpacing:"0.05em"}}>Next multiplier</Label>
+            <Label size={10} color={C.gold} weight={600}>Hold {timeMult.next} for {timeMult.mult + 0.5}x</Label>
+          </div>
+        </div>
+      )}
+
+      {/* How it works */}
+      <div style={{background:"rgba(201,168,76,0.04)",border:`1px solid rgba(201,168,76,0.1)`,borderRadius:8,padding:"10px",marginTop:4}}>
+        <Label size={9} color={C.gold} weight={600} style={{display:"block",marginBottom:4}}>How quarterly airdrop works</Label>
+        <Label size={10} color={C.textTer} style={{lineHeight:1.5}}>0.50% of every trade accumulates in the airdrop pool. Each quarter, the pool distributes as USDC proportional to your points. Hold bigger bags longer to maximize your share.</Label>
+      </div>
+    </div>
+  );
+}
+
 // ===== TRADES TAB =====
 
 function TradesTab({t}) {
@@ -1426,7 +1573,7 @@ function TokenPage({t:tProp,onClose,connected,onConnect}) {
 
           {/* Right tab bar */}
           <div style={{display:"flex",borderBottom:`1px solid ${C.border}`,flexShrink:0}}>
-            {["swap","trades","holders"].map(tb=>(
+            {["swap","rewards","holders"].map(tb=>(
               <button key={tb} onClick={()=>setRightTab(tb)}
                 style={{flex:1,height:36,border:"none",background:"transparent",color:rightTab===tb?C.text:C.textTer,
                   fontSize:12,fontWeight:rightTab===tb?600:400,cursor:"pointer",
@@ -1446,8 +1593,8 @@ function TokenPage({t:tProp,onClose,connected,onConnect}) {
               </div>
             )}
 
-            {rightTab==="trades"&&(
-              <TradesTab t={t}/>
+            {rightTab==="rewards"&&(
+              <RewardsTab t={t} connected={connected} onConnect={onConnect}/>
             )}
 
             {rightTab==="holders"&&(
