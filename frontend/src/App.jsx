@@ -760,17 +760,93 @@ function HoldersTab({t, as}) {
 
 const BONDING_SUPPLY_UI = 650_000_000;
 function getLaunchCap(elapsedMins) {
-  if(elapsedMins<7)  return {bps:150, pct:"1.5%", label:"0–7 min",  col:"#f43f5e", next:7};
-  if(elapsedMins<14) return {bps:200, pct:"2%",   label:"7–14 min", col:"#fb923c", next:14};
-  if(elapsedMins<30) return {bps:500, pct:"5%",   label:"14–30 min",col:"#facc15", next:30};
-  return               {bps:10000,pct:"Open",label:"30 min+",  col:"#22c55e", next:null};
+  if(elapsedMins<2)  return {bps:150, pct:"1.5%", label:"0–2 min",  col:"#f43f5e", next:2};
+  if(elapsedMins<5)  return {bps:250, pct:"2.5%", label:"2–5 min",  col:"#fb923c", next:5};
+  if(elapsedMins<10) return {bps:500, pct:"5%",   label:"5–10 min", col:"#facc15", next:10};
+  return               {bps:10000,pct:"Open",label:"10 min+",  col:"#22c55e", next:null};
 }
 function capTokens(bps) { return Math.floor(BONDING_SUPPLY_UI * bps / 10000); }
 function tokensToSolApprox(tokens, mcap) { return (tokens/BONDING_SUPPLY_UI) * (mcap/180) * 0.55; }
 
-function CapBar({elapsedMins, myHolding, tokensOut, graduated}) {
+function CapBar({elapsedMins, myHolding, tokensOut, graduated, t}) {
   if(graduated) return null;
-  return null; // disabled
+  if(elapsedMins >= 10) return null;
+
+  const windows = [
+    { start: 0, end: 2, bps: 150, pct: "1.5%", label: "Launch", color: C.red },
+    { start: 2, end: 5, bps: 250, pct: "2.5%", label: "Early", color: "#fb923c" },
+    { start: 5, end: 10, bps: 500, pct: "5%", label: "Growth", color: "#facc15" },
+    { start: 10, end: 999, bps: 10000, pct: "Open", label: "Open", color: C.green },
+  ];
+
+  const current = windows.find(w => elapsedMins >= w.start && elapsedMins < w.end) || windows[3];
+  const next = windows.find(w => w.start > elapsedMins) || null;
+  const minsLeft = next ? next.start - elapsedMins : 0;
+  const maxTokens = Math.floor(BONDING_SUPPLY_UI * current.bps / 10000);
+  const maxSolApprox = t.mcap > 0 ? (maxTokens / BONDING_SUPPLY_UI) * (t.mcap / 180) : 0;
+  const progressInWindow = next ? ((elapsedMins - current.start) / (current.end - current.start)) * 100 : 100;
+
+  return (
+    <div style={{background:"rgba(255,255,255,0.03)",border:`1px solid ${current.color}22`,borderRadius:8,padding:"10px",marginBottom:10}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+        <div style={{display:"flex",alignItems:"center",gap:6}}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={current.color} strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <Label size={11} color={current.color} weight={700}>Anti-snipe active</Label>
+        </div>
+        {next && (
+          <Label size={10} color={C.textQuat}>{minsLeft}m until {next.pct} max</Label>
+        )}
+      </div>
+
+      <div style={{display:"flex",gap:2,height:6,borderRadius:99,overflow:"hidden",marginBottom:8}}>
+        {windows.slice(0, 3).map((w, i) => {
+          const isActive = elapsedMins >= w.start && elapsedMins < w.end;
+          const isPast = elapsedMins >= w.end;
+          return (
+            <div key={i} style={{flex: w.end - w.start, position:"relative",background:isPast ? `${w.color}66` : isActive ? `${w.color}22` : "rgba(255,255,255,0.04)",borderRadius:99,overflow:"hidden"}}>
+              {isActive && (
+                <div style={{position:"absolute",left:0,top:0,bottom:0,width:`${progressInWindow}%`,background:w.color,borderRadius:99,transition:"width 1s linear"}}/>
+              )}
+              {isPast && (
+                <div style={{position:"absolute",inset:0,background:w.color,opacity:0.5,borderRadius:99}}/>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{display:"flex",gap:2,marginBottom:8}}>
+        {windows.slice(0, 4).map((w, i) => {
+          const isActive = elapsedMins >= w.start && elapsedMins < w.end;
+          return (
+            <div key={i} style={{flex: i < 3 ? (w.end - w.start) : 1,textAlign:"center"}}>
+              <Label size={8} color={isActive ? w.color : C.textQuat} weight={isActive ? 700 : 400}>
+                {w.pct} max
+              </Label>
+              <Label size={7} color={C.textQuat} style={{display:"block"}}>
+                {w.start}-{w.end < 999 ? w.end : "∞"}m
+              </Label>
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{display:"flex",gap:6}}>
+        <div style={{flex:1,background:"rgba(0,0,0,0.2)",borderRadius:6,padding:"6px 8px"}}>
+          <Label size={8} color={C.textQuat} style={{display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.04em"}}>Max wallet</Label>
+          <Label size={11} color={current.color} weight={700} mono>{current.pct}</Label>
+        </div>
+        <div style={{flex:1,background:"rgba(0,0,0,0.2)",borderRadius:6,padding:"6px 8px"}}>
+          <Label size={8} color={C.textQuat} style={{display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.04em"}}>Max tokens</Label>
+          <Label size={11} color={C.text} weight={600} mono>{(maxTokens/1e6).toFixed(1)}M</Label>
+        </div>
+        <div style={{flex:1,background:"rgba(0,0,0,0.2)",borderRadius:6,padding:"6px 8px"}}>
+          <Label size={8} color={C.textQuat} style={{display:"block",marginBottom:2,textTransform:"uppercase",letterSpacing:"0.04em"}}>≈ Max SOL</Label>
+          <Label size={11} color={C.text} weight={600} mono>{maxSolApprox.toFixed(2)}</Label>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function SwapPanel({t,connected,onConnect}) {
@@ -801,6 +877,9 @@ function SwapPanel({t,connected,onConnect}) {
 
   return (
     <div>
+      {/* Anti-snipe window — visible for tokens under 30 min */}
+      <CapBar elapsedMins={t.elapsed||0} myHolding={myHolding} tokensOut={tokensOut} graduated={t.graduated} t={t}/>
+
       {/* Buy/Sell toggle + settings gear */}
       <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:12}}>
         <div style={{display:"flex",background:"rgba(255,255,255,0.05)",borderRadius:10,padding:2,flex:1}}>
@@ -851,7 +930,7 @@ function SwapPanel({t,connected,onConnect}) {
       </div>
 
       {/* Launch cap bar */}
-      {tab==="buy"&&<CapBar elapsedMins={t.elapsed||0} myHolding={myHolding} tokensOut={tokensOut} graduated={t.graduated} t={t}/>}
+      {/* Launch cap bar removed — now shown above swap toggle for all users */}
 
       {/* Impact details */}
       {impact&&sol>0&&(
