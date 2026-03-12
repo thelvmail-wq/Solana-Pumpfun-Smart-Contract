@@ -2962,7 +2962,7 @@ function ScannerFeed({tokens, onSelect}) {
   };
 
   return (
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(300px, 1fr))",gap:8,alignItems:"start"}}>
+    <div style={{display:"grid",gridTemplateColumns:`repeat(${categories.length}, 1fr)`,gap:8,alignItems:"start"}}>
       {categories.map(cat => (
         <div key={cat.id} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,overflow:"hidden"}}>
           {/* Column header */}
