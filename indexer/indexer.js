@@ -15,8 +15,8 @@ const PROGRAM_ID = new PublicKey('73wyBdTRbZPegtYQbjs4uCAvkiUK9wWKd91WWJHyYL3j')
 const RPC_URL = 'https://api.devnet.solana.com';
 const connection = new Connection(RPC_URL, 'confirmed');
 
-const SUPABASE_URL = 'https://zhhplcgfhrtjyruvlqkx.supabase.co';
-const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpoaHBsY2dmaHJ0anlydXZscWt4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzEwNjA4OSwiZXhwIjoyMDg4NjgyMDg5fQ.STY_OKYdV4rUalRmHVfu0yjE10qoW9HbNEyB5fOV80M';
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
