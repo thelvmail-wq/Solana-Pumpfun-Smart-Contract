@@ -1785,7 +1785,7 @@ function LaunchModal({onClose,slotData,onDeployed}) {
   const topicBlocked = (topicRes&&topicRes.claimed) || !!twitterClaim || !!websiteClaim;
   const deployBlocked = !!tickerBlock || !!imageBlock || topicBlocked;
 
-  const ANTIVAMP_URL = 'https://summit-antivamp.up.railway.app'; // Update after Railway deploy
+  const ANTIVAMP_URL = 'https://solana-pumpfun-smart-contract-production.up.railway.app';
 
   const handleUrl=async(url)=>{
     setForm(p=>({...p,topicUrl:url}));
@@ -2126,7 +2126,12 @@ function LaunchModal({onClose,slotData,onDeployed}) {
       const avRes = await fetch(`${ANTIVAMP_URL}/canonicalize`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source_url: form.topicUrl, image_base64: imgB64, ticker: tkr }),
+        body: JSON.stringify({
+          source_url: form.topicUrl,
+          image_base64: imgB64,
+          mint: mk.publicKey.toBase58(),
+          creator: provider.publicKey.toBase58(),
+        }),
       }).then(r => r.json()).catch(() => null);
       
       if (avRes?.error) {
@@ -2134,7 +2139,7 @@ function LaunchModal({onClose,slotData,onDeployed}) {
       }
       if (avRes?.source_hash) {
         antiVampResult = avRes;
-        console.log("Anti-vamp approved:", avRes.canonical_key);
+        console.log("Anti-vamp approved:", avRes.canonical_key, "expires:", avRes.expiry_timestamp);
       }
     } catch(avErr) {
       console.warn("Anti-vamp check skipped:", avErr.message);
@@ -2235,12 +2240,15 @@ function LaunchModal({onClose,slotData,onDeployed}) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          source_hash: antiVampResult.source_hash,
           canonical_key: antiVampResult.canonical_key,
           mint: mk.publicKey.toBase58(),
-          phash: antiVampResult.image_phash,
+          creator: provider.publicKey.toBase58(),
+          image_phash: antiVampResult.image_phash,
+          tx_sig: sig1,
         }),
       });
-      console.log("Source lock confirmed:", antiVampResult.canonical_key);
+      console.log("Source lock confirmed in cache:", antiVampResult.canonical_key);
     } catch(e) {
       console.warn("Lock confirmation failed:", e.message);
     }
