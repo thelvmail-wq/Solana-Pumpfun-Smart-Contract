@@ -2,65 +2,97 @@
 // SUMMIT.MOON — Anti-Vamp Canonicalization Service
 // 
 // One tweet = one CA. First deploy wins.
+// Chain is the only real authority.
+// Backend canonicalizes + signs. Supabase is cache.
 // 
 // Endpoints:
-//   POST /canonicalize  — takes source URL, returns signed hashes
-//   GET  /health        — health check
+//   POST /canonicalize  — takes source URL + mint + creator, returns signed payload
+//   POST /confirm-lock  — called after on-chain deploy succeeds
+//   GET  /check          — check if a URL is available
+//   GET  /health         — health check
 //
-// Deploy: Railway / Fly.io / any Node host
+// Deploy: Railway
 // ================================================
 
 import express from 'express';
 import cors from 'cors';
 import crypto from 'crypto';
 import nacl from 'tweetnacl';
-import { Keypair } from '@solana/web3.js';
+import { Keypair, PublicKey } from '@solana/web3.js';
+import { createClient } from '@supabase/supabase-js';
 import sharp from 'sharp';
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '5mb' }));
 
 // ── Config ────────────────────────────────────────
 const PORT = process.env.PORT || 3002;
+const SIGNATURE_TTL_SEC = 120; // signatures expire after 2 minutes
+const PHASH_HAMMING_THRESHOLD = 10;
+const TWEET_FRESHNESS_SEC = 60;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX = 10; // 10 requests per minute per IP
 
-// Backend signing keypair — stored as base58 secret in env
-// Generate one: node -e "const{Keypair}=require('@solana/web3.js');const k=Keypair.generate();console.log('PUBKEY:',k.publicKey.toBase58());console.log('SECRET:',Buffer.from(k.secretKey).toString('hex'))"
+// ── Signer Keypair ────────────────────────────────
 const SIGNER_SECRET = process.env.SIGNER_SECRET_HEX;
 let signerKeypair;
 if (SIGNER_SECRET) {
   signerKeypair = Keypair.fromSecretKey(Buffer.from(SIGNER_SECRET, 'hex'));
   console.log('Signer pubkey:', signerKeypair.publicKey.toBase58());
 } else {
-  // Dev mode — generate ephemeral keypair
   signerKeypair = Keypair.generate();
   console.log('DEV MODE — ephemeral signer:', signerKeypair.publicKey.toBase58());
   console.log('Set SIGNER_SECRET_HEX env for production');
 }
 
+// ── Supabase ──────────────────────────────────────
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+let supabase = null;
+
+if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
+  supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+  console.log('Supabase connected:', SUPABASE_URL);
+} else {
+  console.log('WARNING: No Supabase credentials — locks will NOT persist across restarts');
+}
+
+// ── Rate Limiter (in-memory, per IP) ──────────────
+const rateLimitMap = new Map();
+
+function isRateLimited(ip) {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+    rateLimitMap.set(ip, { windowStart: now, count: 1 });
+    return false;
+  }
+  entry.count++;
+  if (entry.count > RATE_LIMIT_MAX) return true;
+  return false;
+}
+
+// Clean rate limit map every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of rateLimitMap.entries()) {
+    if (now - entry.windowStart > RATE_LIMIT_WINDOW_MS) rateLimitMap.delete(ip);
+  }
+}, 300_000);
+
 // ── URL Canonicalization ──────────────────────────
 
-// Twitter Snowflake epoch: 2010-11-04T01:42:54.657Z
 const TWITTER_EPOCH = 1288834974657n;
 
-/**
- * Extract creation timestamp from a Twitter Snowflake ID
- * Snowflake = (timestamp_ms - twitter_epoch) << 22 | machine_id << 12 | sequence
- */
 function tweetTimestampFromId(tweetId) {
   try {
     const id = BigInt(tweetId);
-    const timestampMs = Number((id >> 22n) + TWITTER_EPOCH);
-    return timestampMs;
+    return Number((id >> 22n) + TWITTER_EPOCH);
   } catch (e) {
     return null;
   }
 }
-
-/**
- * Check if a tweet is fresh enough to lock (under LOCK_WINDOW_MS old)
- */
-const LOCK_WINDOW_MS = 60 * 1000; // 60 seconds
 
 function isTweetFreshEnough(tweetId) {
   const createdAt = tweetTimestampFromId(tweetId);
@@ -69,108 +101,64 @@ function isTweetFreshEnough(tweetId) {
   const ageMs = Date.now() - createdAt;
   const ageSec = Math.floor(ageMs / 1000);
   
-  if (ageMs < 0) {
-    // Future timestamp — clock skew, allow it
-    return { fresh: true, ageSec: 0, createdAt };
-  }
+  if (ageMs < 0) return { fresh: true, ageSec: 0, createdAt };
   
-  if (ageMs > LOCK_WINDOW_MS) {
-    return { 
-      fresh: false, 
+  if (ageMs > TWEET_FRESHNESS_SEC * 1000) {
+    return {
+      fresh: false,
       ageSec,
       createdAt,
-      reason: `Tweet is ${ageSec}s old. Source locks only available for tweets under 60 seconds old.`
+      reason: `Tweet is ${ageSec}s old. Source locks only available for tweets under ${TWEET_FRESHNESS_SEC} seconds old.`,
     };
   }
   
   return { fresh: true, ageSec, createdAt };
 }
 
-/**
- * Canonicalize a tweet URL to: x:{tweet_id}
- * Handles: x.com, twitter.com, mobile, tracking params, status URLs
- */
 function canonicalizeTweet(url) {
   const cleaned = url.trim().toLowerCase().replace(/\/$/, '');
   
-  // Extract tweet ID from various URL formats
   const statusMatch = cleaned.match(/(?:x\.com|twitter\.com)\/(?:.*?)\/status\/(\d+)/);
-  if (statusMatch) {
-    return { canonicalKey: `x:${statusMatch[1]}`, tweetId: statusMatch[1] };
-  }
+  if (statusMatch) return { canonicalKey: `x:${statusMatch[1]}`, tweetId: statusMatch[1] };
   
-  // Direct status URL: x.com/i/status/1234567890
   const directMatch = cleaned.match(/(?:x\.com|twitter\.com)\/i\/(?:web\/)?status\/(\d+)/);
-  if (directMatch) {
-    return { canonicalKey: `x:${directMatch[1]}`, tweetId: directMatch[1] };
-  }
+  if (directMatch) return { canonicalKey: `x:${directMatch[1]}`, tweetId: directMatch[1] };
   
   return null;
 }
 
-/**
- * Canonicalize an article URL to: article:{domain}/{path}
- * Strips www, query params, fragments, trailing slashes
- */
 function canonicalizeArticle(url) {
   try {
     const cleaned = url.trim();
     const withProto = cleaned.startsWith('http') ? cleaned : `https://${cleaned}`;
     const parsed = new URL(withProto);
-    
-    // Strip www
     const host = parsed.hostname.replace(/^www\./, '');
-    
-    // Strip query params and fragment
     const path = parsed.pathname.replace(/\/$/, '');
-    
-    if (!path || path === '') {
-      return null; // Just a domain, not an article
-    }
-    
+    if (!path || path === '') return null;
     return `article:${host}${path}`;
   } catch (e) {
     return null;
   }
 }
 
-/**
- * Main canonicalization — detect type, normalize, check freshness
- * Returns: { canonicalKey, type, tweetId?, freshness? } or null
- */
 function canonicalizeUrl(url) {
   if (!url || url.trim().length < 5) return null;
-  
   const s = url.trim().toLowerCase();
   
-  // Is it a tweet?
   if (s.includes('x.com/') || s.includes('twitter.com/')) {
     if (s.includes('/status/')) {
       const result = canonicalizeTweet(s);
       if (!result) return null;
-      
-      // Check tweet freshness — only lockable if under 60 seconds old
       const freshness = isTweetFreshEnough(result.tweetId);
-      
-      return {
-        canonicalKey: result.canonicalKey,
-        type: 'tweet',
-        tweetId: result.tweetId,
-        freshness,
-      };
+      return { canonicalKey: result.canonicalKey, type: 'tweet', tweetId: result.tweetId, freshness };
     }
     return null;
   }
   
-  // Is it a web article? (no freshness check for articles)
   if (s.includes('.') && (s.includes('/') || s.startsWith('http'))) {
     const key = canonicalizeArticle(s);
     if (!key) return null;
-    return {
-      canonicalKey: key,
-      type: 'article',
-      freshness: { fresh: true, ageSec: 0 },
-    };
+    return { canonicalKey: key, type: 'article', freshness: { fresh: true, ageSec: 0 } };
   }
   
   return null;
@@ -178,25 +166,14 @@ function canonicalizeUrl(url) {
 
 // ── Perceptual Hash (pHash) ──────────────────────
 
-/**
- * Compute 64-bit perceptual hash of an image
- * 1. Resize to 32x32 grayscale
- * 2. Apply DCT
- * 3. Take top-left 8x8
- * 4. Compare to median
- * 5. Output 64-bit hash as hex
- */
 async function computePhash(imageBuffer) {
   try {
-    // Resize to 32x32 grayscale
     const pixels = await sharp(imageBuffer)
       .resize(32, 32, { fit: 'fill' })
       .grayscale()
       .raw()
       .toBuffer();
     
-    // Simple DCT-like hash using average
-    // (Full DCT is more accurate but this is sufficient for V1)
     const size = 32;
     const vals = [];
     for (let y = 0; y < 8; y++) {
@@ -205,7 +182,7 @@ async function computePhash(imageBuffer) {
         for (let py = 0; py < size; py++) {
           for (let px = 0; px < size; px++) {
             const pixel = pixels[py * size + px];
-            sum += pixel * Math.cos(Math.PI / size * (py + 0.5) * y) 
+            sum += pixel * Math.cos(Math.PI / size * (py + 0.5) * y)
                        * Math.cos(Math.PI / size * (px + 0.5) * x);
           }
         }
@@ -213,19 +190,14 @@ async function computePhash(imageBuffer) {
       }
     }
     
-    // Compute median
     const sorted = [...vals].sort((a, b) => a - b);
     const median = sorted[Math.floor(sorted.length / 2)];
     
-    // Generate 64-bit hash
     let hash = BigInt(0);
     for (let i = 0; i < 64; i++) {
-      if (vals[i] > median) {
-        hash |= BigInt(1) << BigInt(i);
-      }
+      if (vals[i] > median) hash |= BigInt(1) << BigInt(i);
     }
     
-    // Return as 16-char hex string (8 bytes)
     return hash.toString(16).padStart(16, '0');
   } catch (e) {
     console.error('pHash error:', e.message);
@@ -233,9 +205,6 @@ async function computePhash(imageBuffer) {
   }
 }
 
-/**
- * Hamming distance between two hex hash strings
- */
 function hammingDistance(hash1, hash2) {
   const a = BigInt('0x' + hash1);
   const b = BigInt('0x' + hash2);
@@ -248,76 +217,169 @@ function hammingDistance(hash1, hash2) {
   return count;
 }
 
-// ── Signing ──────────────────────────────────────
+// ── Lock Storage (Supabase-backed) ───────────────
 
-/**
- * Sign data with backend Ed25519 key
- */
-function signData(data) {
-  const message = Buffer.isBuffer(data) ? data : Buffer.from(data);
-  const signature = nacl.sign.detached(message, signerKeypair.secretKey);
+async function checkLock(sourceHash) {
+  // Try Supabase first
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('source_locks')
+        .select('*')
+        .eq('source_hash', sourceHash)
+        .limit(1);
+      
+      if (!error && data && data.length > 0) {
+        return data[0];
+      }
+    } catch (e) {
+      console.error('Supabase checkLock error:', e.message);
+    }
+  }
+  return null;
+}
+
+async function setLock(sourceHash, canonicalKey, mint, creator, imagePhash, txSig) {
+  if (supabase) {
+    try {
+      const { error } = await supabase
+        .from('source_locks')
+        .upsert({
+          source_hash: sourceHash,
+          canonical_key: canonicalKey,
+          mint,
+          creator,
+          image_phash: imagePhash || '0000000000000000',
+          tx_sig: txSig || null,
+        }, { onConflict: 'source_hash' });
+      
+      if (error) {
+        console.error('Supabase setLock error:', error.message);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.error('Supabase setLock error:', e.message);
+      return false;
+    }
+  }
+  return false;
+}
+
+async function checkImageSimilarity(imagePhash) {
+  if (!supabase || imagePhash === '0000000000000000') return null;
+  
+  try {
+    const { data, error } = await supabase
+      .from('source_locks')
+      .select('source_hash, canonical_key, mint, image_phash')
+      .neq('image_phash', '0000000000000000');
+    
+    if (error || !data) return null;
+    
+    for (const lock of data) {
+      const dist = hammingDistance(imagePhash, lock.image_phash);
+      if (dist <= PHASH_HAMMING_THRESHOLD) {
+        return { ...lock, hamming_distance: dist };
+      }
+    }
+  } catch (e) {
+    console.error('Image similarity check error:', e.message);
+  }
+  return null;
+}
+
+// ── Signing (112-byte payload) ───────────────────
+//
+// Payload layout:
+//   source_hash     (32 bytes) — SHA-256 of canonical key
+//   image_phash     (8 bytes)  — perceptual hash of source image
+//   mint            (32 bytes) — token mint pubkey
+//   creator         (32 bytes) — deployer wallet pubkey
+//   expiry_timestamp (8 bytes) — unix timestamp (u64 LE), signature invalid after this
+//
+// Total: 112 bytes
+//
+
+function buildSignaturePayload(sourceHash, imagePhash, mint, creator, expiryTimestamp) {
+  const sourceHashBuf = Buffer.from(sourceHash, 'hex'); // 32 bytes
+  const phashBuf = Buffer.from(imagePhash, 'hex');      // 8 bytes
+  const mintBuf = new PublicKey(mint).toBuffer();        // 32 bytes
+  const creatorBuf = new PublicKey(creator).toBuffer();  // 32 bytes
+  const expiryBuf = Buffer.alloc(8);
+  expiryBuf.writeBigUInt64LE(BigInt(expiryTimestamp));   // 8 bytes
+  
+  return Buffer.concat([sourceHashBuf, phashBuf, mintBuf, creatorBuf, expiryBuf]);
+}
+
+function signPayload(payload) {
+  const signature = nacl.sign.detached(payload, signerKeypair.secretKey);
   return Buffer.from(signature).toString('hex');
-}
-
-// ── Lock Storage (Supabase) ──────────────────────
-
-// In production, check locks against Supabase
-// For now, use in-memory store
-const activeLocks = new Map(); // canonicalKey -> { mint, timestamp, phash }
-
-function checkLock(canonicalKey) {
-  return activeLocks.get(canonicalKey) || null;
-}
-
-function setLock(canonicalKey, mint, phash) {
-  activeLocks.set(canonicalKey, { mint, timestamp: Date.now(), phash });
 }
 
 // ── API Endpoints ────────────────────────────────
 
 app.post('/canonicalize', async (req, res) => {
   try {
-    const { source_url, image_base64, ticker } = req.body;
+    // Rate limit
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    if (isRateLimited(ip)) {
+      return res.status(429).json({ error: 'Rate limited. Try again in a minute.' });
+    }
     
+    const { source_url, image_base64, mint, creator } = req.body;
+    
+    // Validate required fields
     if (!source_url) {
       return res.status(400).json({ error: 'source_url is required' });
+    }
+    if (!mint || !creator) {
+      return res.status(400).json({ error: 'mint and creator are required for signature binding' });
+    }
+    
+    // Validate pubkeys
+    try {
+      new PublicKey(mint);
+      new PublicKey(creator);
+    } catch (e) {
+      return res.status(400).json({ error: 'Invalid mint or creator public key' });
     }
     
     // Step 1: Canonicalize the URL
     const result = canonicalizeUrl(source_url);
     if (!result) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Invalid source URL. Must be a tweet (x.com/.../status/...) or article URL.',
-        hint: 'Profile URLs, domains, and keywords are not lockable.'
+        hint: 'Profile URLs, domains, and keywords are not lockable.',
       });
     }
     
     const { canonicalKey, type, freshness } = result;
     
-    // Step 2: Check tweet freshness — must be under 60 seconds old
+    // Step 2: Check tweet freshness
     if (type === 'tweet' && !freshness.fresh) {
       return res.status(400).json({
         error: freshness.reason,
         canonical_key: canonicalKey,
         type: 'tweet',
         age_seconds: freshness.ageSec,
-        hint: 'Source locks are only available for tweets posted in the last 60 seconds. This prevents lock squatting on old content.',
       });
     }
     
-    // Step 3: Check if already locked
-    const existingLock = checkLock(canonicalKey);
+    // Step 3: Compute source hash
+    const sourceHash = crypto.createHash('sha256').update(canonicalKey).digest('hex');
+    
+    // Step 4: Soft-check Supabase cache (advisory, not authoritative)
+    const existingLock = await checkLock(sourceHash);
     if (existingLock) {
       return res.status(409).json({
-        error: 'Source already claimed',
+        error: 'Source likely already claimed (check chain for authority)',
         canonical_key: canonicalKey,
+        source_hash: sourceHash,
         locked_by: existingLock.mint,
-        locked_at: existingLock.timestamp,
+        locked_at: existingLock.created_at,
       });
     }
-    
-    // Step 4: Compute source hash
-    const sourceHash = crypto.createHash('sha256').update(canonicalKey).digest('hex');
     
     // Step 5: Compute image pHash if provided
     let imagePhash = '0000000000000000';
@@ -327,37 +389,34 @@ app.post('/canonicalize', async (req, res) => {
       if (phash) {
         imagePhash = phash;
         
-        for (const [key, lock] of activeLocks.entries()) {
-          if (lock.phash && lock.phash !== '0000000000000000') {
-            const dist = hammingDistance(imagePhash, lock.phash);
-            if (dist <= 10) {
-              return res.status(409).json({
-                error: 'Similar image already locked',
-                canonical_key: key,
-                locked_by: lock.mint,
-                hamming_distance: dist,
-              });
-            }
-          }
+        // Check for similar images in existing locks
+        const similar = await checkImageSimilarity(imagePhash);
+        if (similar) {
+          return res.status(409).json({
+            error: 'Similar image already locked',
+            canonical_key: similar.canonical_key,
+            locked_by: similar.mint,
+            hamming_distance: similar.hamming_distance,
+          });
         }
       }
     }
     
-    // Step 6: Sign the hashes
-    const payload = Buffer.concat([
-      Buffer.from(sourceHash, 'hex'),
-      Buffer.from(imagePhash, 'hex'),
-    ]);
-    const signature = signData(payload);
+    // Step 6: Build and sign 112-byte payload
+    const expiryTimestamp = Math.floor(Date.now() / 1000) + SIGNATURE_TTL_SEC;
+    const payload = buildSignaturePayload(sourceHash, imagePhash, mint, creator, expiryTimestamp);
+    const signature = signPayload(payload);
     
-    // Step 6: Return signed hashes
+    // Step 7: Return everything the frontend needs
     res.json({
       canonical_key: canonicalKey,
       source_hash: sourceHash,
       image_phash: imagePhash,
-      signature: signature,
+      mint,
+      creator,
+      expiry_timestamp: expiryTimestamp,
+      signature,
       signer_pubkey: signerKeypair.publicKey.toBase58(),
-      // Frontend uses these to build the on-chain transaction
     });
     
   } catch (e) {
@@ -367,21 +426,29 @@ app.post('/canonicalize', async (req, res) => {
 });
 
 // Lock confirmation — called after successful on-chain deploy
-app.post('/confirm-lock', (req, res) => {
+app.post('/confirm-lock', async (req, res) => {
   try {
-    const { canonical_key, mint, phash } = req.body;
-    if (!canonical_key || !mint) {
-      return res.status(400).json({ error: 'canonical_key and mint required' });
+    const { source_hash, canonical_key, mint, creator, image_phash, tx_sig } = req.body;
+    
+    if (!source_hash || !canonical_key || !mint || !creator) {
+      return res.status(400).json({ error: 'source_hash, canonical_key, mint, and creator are required' });
     }
-    setLock(canonical_key, mint, phash || '0000000000000000');
-    res.json({ status: 'locked', canonical_key, mint });
+    
+    const saved = await setLock(source_hash, canonical_key, mint, creator, image_phash, tx_sig);
+    
+    if (saved) {
+      res.json({ status: 'locked', source_hash, canonical_key, mint });
+    } else {
+      res.status(500).json({ error: 'Failed to persist lock. Chain is still the authority.' });
+    }
   } catch (e) {
+    console.error('Confirm-lock error:', e);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // Check if a URL is available
-app.get('/check', (req, res) => {
+app.get('/check', async (req, res) => {
   const { url } = req.query;
   if (!url) return res.status(400).json({ error: 'url param required' });
   
@@ -392,7 +459,6 @@ app.get('/check', (req, res) => {
   
   const { canonicalKey, type, freshness } = result;
   
-  // Check freshness for tweets
   if (type === 'tweet' && !freshness.fresh) {
     return res.json({
       available: false,
@@ -404,10 +470,13 @@ app.get('/check', (req, res) => {
     });
   }
   
-  const lock = checkLock(canonicalKey);
+  const sourceHash = crypto.createHash('sha256').update(canonicalKey).digest('hex');
+  const lock = await checkLock(sourceHash);
+  
   res.json({
     available: !lock,
     canonical_key: canonicalKey,
+    source_hash: sourceHash,
     type,
     locked_by: lock?.mint || null,
     age_seconds: freshness?.ageSec || 0,
@@ -416,12 +485,32 @@ app.get('/check', (req, res) => {
 });
 
 // Health check
-app.get('/health', (req, res) => {
+app.get('/health', async (req, res) => {
+  let lockCount = 0;
+  let supabaseStatus = 'disconnected';
+  
+  if (supabase) {
+    try {
+      const { count, error } = await supabase
+        .from('source_locks')
+        .select('*', { count: 'exact', head: true });
+      
+      if (!error) {
+        lockCount = count || 0;
+        supabaseStatus = 'connected';
+      }
+    } catch (e) {
+      supabaseStatus = 'error';
+    }
+  }
+  
   res.json({
     status: 'ok',
     uptime: process.uptime(),
     signer: signerKeypair.publicKey.toBase58(),
-    locks: activeLocks.size,
+    supabase: supabaseStatus,
+    locks: lockCount,
+    signature_ttl_sec: SIGNATURE_TTL_SEC,
   });
 });
 
@@ -432,5 +521,8 @@ app.listen(PORT, () => {
   console.log('SUMMIT.MOON Anti-Vamp Service');
   console.log(`Port: ${PORT}`);
   console.log(`Signer: ${signerKeypair.publicKey.toBase58()}`);
+  console.log(`Supabase: ${SUPABASE_URL ? 'connected' : 'NOT CONFIGURED'}`);
+  console.log(`Signature TTL: ${SIGNATURE_TTL_SEC}s`);
+  console.log(`Rate limit: ${RATE_LIMIT_MAX} req/min per IP`);
   console.log('========================================');
 });
