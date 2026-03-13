@@ -68,12 +68,23 @@ pub enum CustomError {
     #[msg("No deploy slots available")]
     NoSlotsAvailable,
 
+    // === NEW: Migration errors ===
+    #[msg("Pool has already been migrated to Meteora")]
+    AlreadyMigrated,
+
+    #[msg("Migration has not been completed by the bot yet")]
+    MigrationNotComplete,
+
+    // === NEW: Source lock / anti-vamp errors ===
     #[msg("Ed25519 signature verification failed")]
     Ed25519VerificationFailed,
 
-    #[msg("Backend signature has expired")]
+    #[msg("Source lock signature has expired")]
     SignatureExpired,
 
-    #[msg("Invalid anti-vamp signer pubkey")]
+    #[msg("Invalid signer for source lock")]
     InvalidSigner,
+
+    #[msg("Source is already locked by another token")]
+    SourceAlreadyLocked,
 }
