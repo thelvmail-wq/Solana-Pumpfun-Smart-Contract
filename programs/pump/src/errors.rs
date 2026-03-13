@@ -68,23 +68,28 @@ pub enum CustomError {
     #[msg("No deploy slots available")]
     NoSlotsAvailable,
 
-    // === NEW: Migration errors ===
+    // ── Migration (escrow PDA) ──────────────────────────
+
     #[msg("Pool has already been migrated to Meteora")]
     AlreadyMigrated,
 
-    #[msg("Migration has not been completed by the bot yet")]
-    MigrationNotComplete,
+    #[msg("Migration escrow is not funded")]
+    EscrowNotFunded,
 
-    // === NEW: Source lock / anti-vamp errors ===
-    #[msg("Ed25519 signature verification failed")]
-    Ed25519VerificationFailed,
+    #[msg("Migration has failed — escrow returned to pool")]
+    MigrationFailed,
 
-    #[msg("Source lock signature has expired")]
-    SignatureExpired,
-
-    #[msg("Invalid signer for source lock")]
-    InvalidSigner,
+    // ── Source lock (anti-vamp V1.1) ────────────────────
 
     #[msg("Source is already locked by another token")]
     SourceAlreadyLocked,
+
+    #[msg("Ed25519 signature verification failed")]
+    Ed25519VerificationFailed,
+
+    #[msg("Signature has expired")]
+    SignatureExpired,
+
+    #[msg("Invalid signer for anti-vamp verification")]
+    InvalidSigner,
 }
