@@ -1,4 +1,4 @@
-import { buildSwapTx, buildCreateRegistryTx, buildClaimLocksTx, buildCreateSourceLockTx, fetchDeployedTokens, fetchAllTokensWithPools, connection, sha256, fetchHolderCount, fetchCandles } from "./solana.js";
+import { buildSwapTx, buildCreateRegistryTx, buildClaimLocksTx, buildCreateSourceLockTx, fetchDeployedTokens, fetchAllTokensWithPools, fetchSourceLocks, connection, sha256, fetchHolderCount, fetchCandles } from "./solana.js";
 import { useState, useEffect, useRef } from "react";
 
 // ── Design direction: High-end crypto editorial ─────────────────
@@ -1050,6 +1050,22 @@ function SwapPanel({t,connected,onConnect}) {
             <Label size={9} color={C.textTer}>Copy</Label>
           </button>
         </div>
+
+        {/* Source verification status */}
+        {t.sourceLocked&&(
+          <div style={{marginTop:8,background:"rgba(201,168,76,0.06)",border:`1px solid rgba(201,168,76,0.15)`,borderRadius:8,padding:"8px 10px",display:"flex",alignItems:"center",gap:8}}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill={C.gold} stroke="none"><path d="M12 1l3.09 6.26L22 8.27l-5 4.87L18.18 20 12 16.77 5.82 20 7 13.14l-5-4.87 6.91-1.01L12 1z"/></svg>
+            <div>
+              <Label size={10} color={C.gold} weight={600} style={{display:"block"}}>Source Verified</Label>
+              <Label size={9} color={C.textTer}>{t.sourceKey || "On-chain source lock active"}</Label>
+            </div>
+          </div>
+        )}
+        {!t.sourceLocked&&(
+          <div style={{marginTop:8,background:"rgba(255,255,255,0.02)",borderRadius:8,padding:"8px 10px",display:"flex",alignItems:"center",gap:8}}>
+            <Label size={9} color={C.textQuat}>Standard launch — no source verification</Label>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1529,7 +1545,11 @@ function TokenPage({t:tProp,onClose,connected,onConnect}) {
         <div style={{flex:1,minWidth:0,display:"flex",alignItems:"center",gap:10}}>
           <Label size={16} color={C.text} weight={700}>{t.sym}</Label>
           {t.name && t.name !== t.sym && <Label size={12} color={C.textTer}>{t.name}</Label>}
-          {t.topicLocked&&<div style={{background:C.tealBg,border:`1px solid ${C.tealBd}`,borderRadius:6,padding:"2px 8px"}}><Label size={10} color={C.teal}>{t.topicSource} -- {t.topicTitle?.slice(0,36)}</Label></div>}
+          {t.sourceLocked&&<div style={{background:C.goldBg,border:`1px solid ${C.goldBd}`,borderRadius:6,padding:"2px 8px",display:"flex",alignItems:"center",gap:4}}>
+            <svg width="8" height="8" viewBox="0 0 24 24" fill={C.gold} stroke="none"><path d="M12 1l3.09 6.26L22 8.27l-5 4.87L18.18 20 12 16.77 5.82 20 7 13.14l-5-4.87 6.91-1.01L12 1z"/></svg>
+            <Label size={10} color={C.gold} weight={600}>Source Verified</Label>
+          </div>}
+          {t.topicLocked&&!t.sourceLocked&&<div style={{background:C.tealBg,border:`1px solid ${C.tealBd}`,borderRadius:6,padding:"2px 8px"}}><Label size={10} color={C.teal}>{t.topicSource} -- {t.topicTitle?.slice(0,36)}</Label></div>}
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
           {t.tw&&(
@@ -2986,6 +3006,15 @@ function ScannerFeed({tokens, onSelect}) {
               {isCopy&&(
                 <span title="Unverified — related source already claimed" style={{display:"inline-flex",alignItems:"center",gap:2,fontSize:7,fontWeight:600,color:C.red,background:"rgba(244,63,94,0.1)",borderRadius:3,padding:"1px 4px",lineHeight:"11px"}}>COPY</span>
               )}
+              {t.sourceLocked&&(
+                <span title={"Source: " + (t.sourceKey||"")} style={{display:"inline-flex",alignItems:"center",gap:2,fontSize:7,fontWeight:700,color:C.gold,background:"rgba(201,168,76,0.12)",border:"1px solid rgba(201,168,76,0.25)",borderRadius:3,padding:"1px 4px",lineHeight:"11px",cursor:"default"}}>
+                  <svg width="7" height="7" viewBox="0 0 24 24" fill={C.gold} stroke="none"><path d="M12 1l3.09 6.26L22 8.27l-5 4.87L18.18 20 12 16.77 5.82 20 7 13.14l-5-4.87 6.91-1.01L12 1z"/></svg>
+                  VERIFIED
+                </span>
+              )}
+              {!t.sourceLocked&&t.isProtected&&(
+                <span style={{fontSize:7,fontWeight:700,color:C.purple,background:"rgba(167,139,250,0.12)",border:"1px solid rgba(167,139,250,0.25)",borderRadius:3,padding:"1px 4px",lineHeight:"11px"}}>PVP</span>
+              )}
               {isNew&&<span style={{fontSize:7,fontWeight:800,color:C.green,background:"rgba(34,197,94,0.15)",borderRadius:2,padding:"0 4px",lineHeight:"12px"}}>NEW</span>}
             </div>
             <div style={{display:"flex",alignItems:"center",gap:4,marginTop:1}}>
@@ -3086,12 +3115,27 @@ export default function SummitMoon() {
 
   // Fetch tokens on load + poll every 15s for new tokens and updated data
   useEffect(()=>{
-    const load = () => fetchAllTokensWithPools().then(onChain=>{
-      if(onChain.length>0){
-        setTokens(onChain);
-        setPlatformVol(onChain.reduce((a,t)=>a+(t.volRaw||0),0));
+    const load = async () => {
+      try {
+        const [onChain, locks] = await Promise.all([
+          fetchAllTokensWithPools(),
+          fetchSourceLocks(),
+        ]);
+        if(onChain.length>0){
+          const enriched = onChain.map(t => {
+            const lock = locks[t.mint];
+            if (lock) {
+              return { ...t, sourceLocked: true, sourceKey: lock.canonicalKey, sourceLockedAt: lock.lockedAt };
+            }
+            return { ...t, sourceLocked: false };
+          });
+          setTokens(enriched);
+          setPlatformVol(enriched.reduce((a,t)=>a+(t.volRaw||0),0));
+        }
+      } catch(e) {
+        console.error("fetch tokens error:",e);
       }
-    }).catch(e=>console.error("fetch tokens error:",e));
+    };
     load();
     const interval = setInterval(load, 30000);
     return () => clearInterval(interval);

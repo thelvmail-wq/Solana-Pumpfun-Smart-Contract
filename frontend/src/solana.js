@@ -371,6 +371,21 @@ export async function buildCreateSourceLockTx(creatorPubkey, mintPubkey, antiVam
   return tx
 }
 
+
+// ── Fetch source locks from Supabase ──────────────────────────
+export async function fetchSourceLocks() {
+  const data = await supabaseGet('source_locks', 'select=mint,canonical_key,source_hash,created_at&order=created_at.desc')
+  const map = {}
+  for (const lock of data) {
+    map[lock.mint] = {
+      canonicalKey: lock.canonical_key,
+      sourceHash: lock.source_hash,
+      lockedAt: lock.created_at,
+    }
+  }
+  return map
+}
+
 // ══════════════════════════════════════════════════════════════
 // Fetch all TokenRegistry accounts (dataSize: 202)
 // ══════════════════════════════════════════════════════════════
