@@ -22,34 +22,32 @@ pub const DEPLOY_PROTOCOL_PCT: u64 = 30;
 pub const DEPLOY_AIRDROP_PCT: u64 = 10;
 pub const DEPLOY_INFRA_PCT: u64 = 10;
 
-/// Max wallet anti-snipe windows (updated to match on-chain)
-/// 0-2min: 1.5% max wallet
-/// 2-5min: 2.5% max wallet
-/// 5-10min: 5% max wallet
-/// 10min+: unlimited
-pub const SNIPE_WINDOW_1: i64 = 120;   // 0-2min
-pub const SNIPE_WINDOW_2: i64 = 300;   // 2-5min
-pub const SNIPE_WINDOW_3: i64 = 600;   // 5-10min
+/// ── Anti-snipe windows (UPDATED) ──────────────────────
+/// 0-2 min  = 1.5% max wallet (150 bps)
+/// 2-5 min  = 2.5% max wallet (250 bps)
+/// 5-10 min = 5%   max wallet (500 bps)
+/// 10+ min  = open (no cap)
+pub const SNIPE_WINDOW_1: i64 = 120;   // 0 → 2 min
+pub const SNIPE_WINDOW_2: i64 = 300;   // 2 → 5 min
+pub const SNIPE_WINDOW_3: i64 = 600;   // 5 → 10 min
+pub const SNIPE_BPS_1: u64 = 150;      // 1.5%
+pub const SNIPE_BPS_2: u64 = 250;      // 2.5%
+pub const SNIPE_BPS_3: u64 = 500;      // 5%
 
-/// Anti-vamp: MC threshold for protection activation (in USD cents to avoid floats)
-/// $100,000 = 10_000_000 cents. Keeper checks this off-chain and calls activate_protection.
+/// ── Graduation fee (2.5% of pool SOL) ─────────────────
+/// Split: 60% stays as LP in Meteora, 20% protocol, 8% airdrop, 12% holder reserve
+pub const GRAD_FEE_BPS: u64 = 250;          // 2.5% total
+pub const GRAD_LP_BPS: u64 = 6000;          // 60% of fee
+pub const GRAD_PROTOCOL_BPS: u64 = 2000;    // 20% of fee
+pub const GRAD_AIRDROP_BPS: u64 = 800;      // 8% of fee
+pub const GRAD_HOLDER_BPS: u64 = 1200;      // 12% of fee
+
+/// Anti-vamp: MC threshold for protection activation (in USD cents)
+/// $100,000 = 10_000_000 cents
 pub const MC_PROTECTION_THRESHOLD_CENTS: u64 = 10_000_000;
 
 /// Identity lock cooldown: 24 hours in seconds
 pub const IDENTITY_COOLDOWN_SECS: i64 = 86_400;
 
-/// Source lock signature TTL: 120 seconds
-pub const SIGNATURE_TTL_SECS: i64 = 120;
-
-// === GRADUATION FEE SPLIT ===
-// Total graduation fee: 2.5% of SOL in pool at graduation
-// Split as basis points out of 10000:
-//   60% stays as LP in Meteora pool  = 6000
-//   20% protocol wallet (Adrian)     = 2000
-//   8%  airdrop pool                 = 800
-//   12% top holder reserve           = 1200
-pub const GRAD_FEE_TOTAL_BPS: u64 = 250;           // 2.5% of total SOL
-pub const GRAD_LP_BPS: u64 = 6000;                  // 60% of the 2.5% fee
-pub const GRAD_PROTOCOL_BPS: u64 = 2000;            // 20% of the 2.5% fee
-pub const GRAD_AIRDROP_BPS: u64 = 800;              // 8% of the 2.5% fee
-pub const GRAD_HOLDER_RESERVE_BPS: u64 = 1200;      // 12% of the 2.5% fee
+/// Source lock signature TTL: 5 minutes
+pub const SIGNATURE_TTL_SECS: i64 = 300;
