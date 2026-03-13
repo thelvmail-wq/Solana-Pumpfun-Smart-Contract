@@ -1,4 +1,4 @@
-import { buildSwapTx, buildCreateRegistryTx, buildClaimLocksTx, fetchDeployedTokens, fetchAllTokensWithPools, connection, sha256, fetchHolderCount, fetchCandles } from "./solana.js";
+import { buildSwapTx, buildCreateRegistryTx, buildClaimLocksTx, buildCreateSourceLockTx, fetchDeployedTokens, fetchAllTokensWithPools, connection, sha256, fetchHolderCount, fetchCandles } from "./solana.js";
 import { useState, useEffect, useRef } from "react";
 
 // ── Design direction: High-end crypto editorial ─────────────────
@@ -2231,6 +2231,24 @@ function LaunchModal({onClose,slotData,onDeployed}) {
     console.warn("claim_locks failed (non-fatal):",lockErr.message);
   }
 
+  // ── TX5: Create source lock on-chain (if anti-vamp was used) ──
+  if (antiVampResult && antiVampResult.source_hash) {
+    try {
+      const txSL = await buildCreateSourceLockTx(provider.publicKey, mk.publicKey, antiVampResult);
+      txSL.add(ComputeBudgetProgram.setComputeUnitLimit({units:400000}));
+      txSL.add(ComputeBudgetProgram.setComputeUnitPrice({microLamports:10000}));
+      const bhSL = await connection.getLatestBlockhash("confirmed");
+      txSL.recentBlockhash = bhSL.blockhash;
+      txSL.feePayer = provider.publicKey;
+      const rSL = await provider.signAndSendTransaction(txSL);
+      const sigSL = rSL.signature || rSL;
+      console.log("SourceLock TX:", sigSL);
+      await confirmAndVerify(sigSL, "SourceLock");
+      console.log("Source lock created on-chain ✅");
+    } catch(slErr) {
+      console.warn("Source lock failed (non-fatal):", slErr.message);
+    }
+  }
   console.log("FULL DEPLOY COMPLETE");
 
   // Confirm anti-vamp lock if source URL was used

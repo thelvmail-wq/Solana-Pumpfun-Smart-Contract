@@ -1,4 +1,4 @@
-import { Connection, PublicKey, SystemProgram, Transaction, TransactionInstruction, LAMPORTS_PER_SOL } from '@solana/web3.js'
+import { Connection, PublicKey, SystemProgram, Transaction, TransactionInstruction, LAMPORTS_PER_SOL, Ed25519Program } from '@solana/web3.js'
 import { getAssociatedTokenAddress, createAssociatedTokenAccountInstruction, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from '@solana/spl-token'
 import { Buffer } from 'buffer'
 
@@ -34,6 +34,16 @@ const DISCRIMINATORS = {
   claim_locks:   Buffer.from('50ac2a7b3fc26165', 'hex'),
 }
 
+// create_source_lock discriminator will be computed at build time
+// For now we compute it from the anchor convention: sha256("global:create_source_lock")[0..8]
+let CREATE_SOURCE_LOCK_DISC = null
+async function getSourceLockDisc() {
+  if (CREATE_SOURCE_LOCK_DISC) return CREATE_SOURCE_LOCK_DISC
+  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('global:create_source_lock'))
+  CREATE_SOURCE_LOCK_DISC = Buffer.from(new Uint8Array(hash).slice(0, 8))
+  return CREATE_SOURCE_LOCK_DISC
+}
+
 // PDAs
 export function getPoolPDA(mint) {
   return PublicKey.findProgramAddressSync([Buffer.from('liquidity_pool'), mint.toBuffer()], PROGRAM_ID)
@@ -46,6 +56,12 @@ export function getLiquidityProviderPDA(mint, user) {
 }
 export function getTokenRegistryPDA(mint) {
   return PublicKey.findProgramAddressSync([Buffer.from('token_registry'), mint.toBuffer()], PROGRAM_ID)
+}
+export function getSourceLockPDA(sourceHash) {
+  return PublicKey.findProgramAddressSync([Buffer.from('source_lock'), sourceHash], PROGRAM_ID)
+}
+export function getDexConfigPDA() {
+  return PublicKey.findProgramAddressSync([Buffer.from('CurveConfiguration')], PROGRAM_ID)
 }
 
 // ── Hash helpers ──────────────────────────────────────────────
@@ -280,6 +296,78 @@ export async function buildClaimLocksTx(creatorPubkey, mintPubkey, tickerBuf, im
   const { blockhash } = await connection.getLatestBlockhash()
   tx.recentBlockhash = blockhash
   tx.feePayer = creator
+  return tx
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// create_source_lock — Ed25519 verified source claim
+// antiVampResult = { source_hash, image_phash, signature, signer_pubkey, expiry_timestamp }
+// ══════════════════════════════════════════════════════════════
+export async function buildCreateSourceLockTx(creatorPubkey, mintPubkey, antiVampResult) {
+  const mint = new PublicKey(mintPubkey)
+  const creator = creatorPubkey instanceof PublicKey ? creatorPubkey : new PublicKey(creatorPubkey)
+
+  const sourceHashBuf = Buffer.from(antiVampResult.source_hash, 'hex') // 32 bytes
+  const imagePhashBuf = Buffer.from(antiVampResult.image_phash, 'hex') // 8 bytes
+  const signatureBuf = Buffer.from(antiVampResult.signature, 'hex')    // 64 bytes
+  const signerPubkeyBytes = new PublicKey(antiVampResult.signer_pubkey).toBytes() // 32 bytes
+  const expiryTimestamp = antiVampResult.expiry_timestamp
+
+  // Build the 112-byte message that was signed
+  const message = Buffer.alloc(112)
+  sourceHashBuf.copy(message, 0)       // 0..32
+  imagePhashBuf.copy(message, 32)      // 32..40
+  mint.toBuffer().copy(message, 40)    // 40..72
+  creator.toBuffer().copy(message, 72) // 72..104
+  const expiryBuf = Buffer.alloc(8)
+  expiryBuf.writeBigInt64LE(BigInt(expiryTimestamp))
+  expiryBuf.copy(message, 104)         // 104..112
+
+  // 1. Ed25519 verify instruction (must be FIRST in the transaction)
+  const ed25519Ix = Ed25519Program.createInstructionWithPublicKey({
+    publicKey: signerPubkeyBytes,
+    message: message,
+    signature: signatureBuf,
+  })
+
+  // 2. Our create_source_lock instruction
+  const [sourceLock] = getSourceLockPDA(sourceHashBuf)
+  const [dexConfig] = getDexConfigPDA()
+  const SYSVAR_IX = new PublicKey('Sysvar1nstructions1111111111111111111111111')
+
+  const disc = await getSourceLockDisc()
+
+  // Instruction data: disc(8) + source_hash(32) + image_phash(8) + expiry_timestamp(8) + ed25519_sig(64) + ed25519_pubkey(32)
+  const data = Buffer.alloc(8 + 32 + 8 + 8 + 64 + 32)
+  disc.copy(data, 0)
+  sourceHashBuf.copy(data, 8)
+  imagePhashBuf.copy(data, 40)
+  expiryBuf.copy(data, 48)
+  signatureBuf.copy(data, 56)
+  Buffer.from(signerPubkeyBytes).copy(data, 120)
+
+  const sourceLockIx = new TransactionInstruction({
+    keys: [
+      { pubkey: sourceLock,   isSigner: false, isWritable: true  },
+      { pubkey: dexConfig,    isSigner: false, isWritable: false },
+      { pubkey: mint,         isSigner: false, isWritable: false },
+      { pubkey: creator,      isSigner: true,  isWritable: true  },
+      { pubkey: SYSVAR_IX,    isSigner: false, isWritable: false },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+    ],
+    programId: PROGRAM_ID,
+    data,
+  })
+
+  const tx = new Transaction()
+  tx.add(ed25519Ix)      // MUST be first — the on-chain program reads this from instruction sysvar
+  tx.add(sourceLockIx)   // Our instruction reads the Ed25519 ix above
+
+  const { blockhash } = await connection.getLatestBlockhash()
+  tx.recentBlockhash = blockhash
+  tx.feePayer = creator
+
   return tx
 }
 
