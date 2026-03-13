@@ -1690,10 +1690,9 @@ function TokenPage({t:tProp,onClose,connected,onConnect}) {
 // ===== LAUNCH MODAL =====
 
 function LaunchModal({onClose,slotData,onDeployed}) {
-  const [form,setForm]=useState({name:"",sym:"",desc:"",twitter:"",website:"",topicUrl:"",imageFile:null});
+  const [form,setForm]=useState({name:"",sym:"",desc:"",twitter:"",website:"",imageFile:null});
   const [state,setState]=useState("idle");
   const [topicRes,setTopicRes]=useState(null);
-  const [classifying,setClassifying]=useState(false);
 
   function extractIdentity(raw) {
     if(!raw||raw.trim().length<2) return null;
@@ -1782,40 +1781,40 @@ function LaunchModal({onClose,slotData,onDeployed}) {
   const ready = form.name.trim() && form.sym.trim();
   const hasIdentityLink = !!(form.twitter.trim().length > 1 || form.website.trim().length > 4);
   const pvpProtected = hasIdentityLink && !twitterClaim && !websiteClaim;
-  const topicBlocked = (topicRes&&topicRes.claimed) || !!twitterClaim || !!websiteClaim;
+  const topicBlocked = !!twitterClaim || !!websiteClaim || (topicRes&&topicRes.claimed);
   const deployBlocked = !!tickerBlock || !!imageBlock || topicBlocked;
 
   const ANTIVAMP_URL = 'https://solana-pumpfun-smart-contract-production.up.railway.app';
 
-  const handleUrl=async(url)=>{
-    setForm(p=>({...p,topicUrl:url}));
-    if(!url||url.trim().length===0){setTopicRes(null);setClassifying(false);return;}
-    if(url.length<10){setTopicRes(null);return;}
-    setClassifying(true);setTopicRes(null);
+  // Check source URL availability when twitter field changes
+  const checkSourceUrl = async (url) => {
+    if (!url || url.trim().length < 10) { setTopicRes(null); return; }
+    const s = url.trim().toLowerCase();
+    // Only check if it looks like a tweet URL or article URL
+    const isTweet = (s.includes('x.com/') || s.includes('twitter.com/')) && s.includes('/status/');
+    const isArticle = s.includes('.') && s.includes('/') && !s.includes('x.com') && !s.includes('twitter.com');
+    if (!isTweet && !isArticle) { setTopicRes(null); return; }
     
     try {
-      // Try backend first
       const checkRes = await fetch(`${ANTIVAMP_URL}/check?url=${encodeURIComponent(url)}`).then(r=>r.json()).catch(()=>null);
-      
       if (checkRes) {
         if (!checkRes.available && checkRes.locked_by) {
           setTopicRes({ claimed: true, claimedBy: checkRes.locked_by.slice(0,8)+'...', source: 'on-chain', entity: checkRes.canonical_key });
         } else if (checkRes.available && checkRes.canonical_key) {
           const parts = checkRes.canonical_key.split(':');
           const source = parts[0] === 'x' ? 'X/Twitter' : 'Article';
-          setTopicRes({ claimed: false, source, entity: checkRes.canonical_key, canonicalKey: checkRes.canonical_key });
+          setTopicRes({ claimed: false, source, entity: checkRes.canonical_key, lockable: checkRes.lockable });
+        } else if (!checkRes.lockable) {
+          setTopicRes({ claimed: false, source: 'expired', entity: checkRes.reason || 'Not lockable', invalid: true });
         } else {
-          setTopicRes({ claimed: false, source: 'Unknown', entity: 'Invalid URL format', invalid: true });
+          setTopicRes(null);
         }
       } else {
-        // Backend not available — fall back to client-side classification
-        setTopicRes(classifyTopic(url));
+        setTopicRes(null);
       }
     } catch(e) {
-      // Fallback to client-side
-      setTopicRes(classifyTopic(url));
+      setTopicRes(null);
     }
-    setClassifying(false);
   };
 
   if(state==="done") return (
@@ -1832,7 +1831,7 @@ function LaunchModal({onClose,slotData,onDeployed}) {
           {!hasIdentityLink&&<Label size={12} color={C.textTer} style={{display:"block",marginBottom:3}}>No identity lock — no Twitter/website was linked</Label>}
           <Label size={11} color={C.textTer} style={{display:"block",marginTop:6,lineHeight:1.5}}>All locks become permanent once you cross $50K market cap.</Label>
         </div>
-        {topicRes&&!deployBlocked&&<div style={{background:C.tealBg,border:`1px solid ${C.tealBd}`,borderRadius:10,padding:"10px 12px",marginBottom:16,textAlign:"left"}}><Label size={12} color={C.teal} weight={600}>Verified topic locked -- {topicRes.source} / {topicRes.entity}</Label></div>}
+        {topicRes&&!topicRes.claimed&&!deployBlocked&&<div style={{background:C.tealBg,border:`1px solid ${C.tealBd}`,borderRadius:10,padding:"10px 12px",marginBottom:16,textAlign:"left"}}><Label size={12} color={C.teal} weight={600}>Source verified -- {topicRes.source} / {topicRes.entity}</Label></div>}
         <Btn full color={C.accent} onClick={onClose}>Done</Btn>
       </div>
     </div>
@@ -1961,7 +1960,7 @@ function LaunchModal({onClose,slotData,onDeployed}) {
             onBlur={e=>{e.target.style.borderColor=C.border;e.target.style.background="rgba(255,255,255,0.04)";}}/>
 
           <div style={{marginBottom:8}}>
-            <input value={form.twitter} onChange={e=>setForm(p=>({...p,twitter:e.target.value}))} placeholder="@twitter or x.com/handle — required for PVP lock"
+            <input value={form.twitter} onChange={e=>{setForm(p=>({...p,twitter:e.target.value}));checkSourceUrl(e.target.value);}} placeholder="@twitter or tweet URL (x.com/.../status/...) — locks source + identity"
               style={{display:"block",width:"100%",background:"rgba(255,255,255,0.04)",border:`1.5px solid ${twitterClaim?C.redBd:form.twitter.length>1?C.tealBd:C.border}`,borderRadius:12,padding:"13px 16px",color:C.text,fontSize:15,outline:"none",boxSizing:"border-box",transition:"border-color 0.15s, background 0.15s"}}
               onFocus={e=>{e.target.style.background="rgba(255,255,255,0.06)";}}
               onBlur={e=>{e.target.style.background="rgba(255,255,255,0.04)";}}/>
@@ -1977,10 +1976,27 @@ function LaunchModal({onClose,slotData,onDeployed}) {
                 <Label size={11} color={C.teal}>Identity <strong style={{color:C.text}}>{twitterIdentity}</strong> locks to this CA -- all derivatives blocked</Label>
               </div>
             )}
+            {topicRes&&!topicRes.claimed&&topicRes.source==='X/Twitter'&&(
+              <div style={{display:"flex",alignItems:"center",gap:7,marginTop:4,padding:"8px 11px",background:C.goldBg,border:`1px solid ${C.goldBd}`,borderRadius:9}}>
+                <div style={{width:4,height:4,borderRadius:"50%",background:C.gold,flexShrink:0}}/>
+                <Label size={11} color={C.gold}>Source lock: <strong style={{color:C.text}}>{topicRes.entity}</strong> — first deployer wins on-chain</Label>
+              </div>
+            )}
+            {topicRes&&topicRes.claimed&&(
+              <div style={{display:"flex",alignItems:"center",gap:7,marginTop:4,padding:"8px 11px",background:C.redBg,border:`1px solid ${C.redBd}`,borderRadius:9}}>
+                <div style={{width:4,height:4,borderRadius:"50%",background:C.red,flexShrink:0}}/>
+                <Label size={11} color={C.red}>Source already claimed by <strong style={{color:C.text}}>{topicRes.claimedBy}</strong></Label>
+              </div>
+            )}
+            {topicRes&&topicRes.invalid&&(
+              <div style={{display:"flex",alignItems:"center",gap:7,marginTop:4,padding:"8px 11px",background:"rgba(255,255,255,0.03)",border:`1px solid ${C.border}`,borderRadius:9}}>
+                <Label size={11} color={C.textTer}>{topicRes.entity}</Label>
+              </div>
+            )}
           </div>
 
           <div style={{marginBottom:8}}>
-            <input value={form.website} onChange={e=>setForm(p=>({...p,website:e.target.value}))} placeholder="Website URL — required for PVP lock"
+            <input value={form.website} onChange={e=>{setForm(p=>({...p,website:e.target.value}));checkSourceUrl(e.target.value);}} placeholder="Website or article URL — locks source + identity"
               style={{display:"block",width:"100%",background:"rgba(255,255,255,0.04)",border:`1.5px solid ${websiteClaim?C.redBd:form.website.length>4?C.tealBd:C.border}`,borderRadius:12,padding:"13px 16px",color:C.text,fontSize:15,outline:"none",boxSizing:"border-box",transition:"border-color 0.15s, background 0.15s"}}
               onFocus={e=>{e.target.style.background="rgba(255,255,255,0.06)";}}
               onBlur={e=>{e.target.style.background="rgba(255,255,255,0.04)";}}/>
@@ -2015,21 +2031,7 @@ function LaunchModal({onClose,slotData,onDeployed}) {
             </div>
           )}
 
-          <div style={{marginBottom:8}}>
-            <input value={form.topicUrl} onChange={e=>handleUrl(e.target.value)} placeholder="News or tweet URL (locks topic)"
-              style={{display:"block",width:"100%",background:"rgba(255,255,255,0.04)",border:`1.5px solid ${topicRes?.claimed?C.redBd:topicRes&&!topicRes.claimed?C.tealBd:C.border}`,borderRadius:12,padding:"13px 16px",color:C.text,fontSize:15,outline:"none",boxSizing:"border-box",fontFamily:"inherit",transition:"border-color 0.15s, background 0.15s"}}
-              onFocus={e=>{e.target.style.background="rgba(255,255,255,0.06)";}}
-              onBlur={e=>{e.target.style.background="rgba(255,255,255,0.04)";}}/>
-            {classifying&&form.topicUrl.length>0&&<Label size={11} color={C.textTer} style={{display:"block",marginTop:6}}>Classifying...</Label>}
-            {topicRes&&!classifying&&form.topicUrl.length>0&&(
-              <div style={{display:"flex",alignItems:"center",gap:7,marginTop:6,padding:"8px 11px",background:topicRes.claimed?C.redBg:C.tealBg,border:`1px solid ${topicRes.claimed?C.redBd:C.tealBd}`,borderRadius:9}}>
-                <div style={{width:4,height:4,borderRadius:"50%",background:topicRes.claimed?C.red:C.teal,flexShrink:0}}/>
-                {topicRes.claimed
-                  ?<Label size={11} color={C.red}>Topic claimed by <strong>{topicRes.claimedBy}</strong> for 24h -- use a different URL.</Label>
-                  :<Label size={11} color={C.teal}>{topicRes.entity} via {topicRes.source} -- locks on deploy</Label>}
-              </div>
-            )}
-          </div>
+
 
           <div style={{marginBottom:12,background:C.card,borderRadius:12,border:`1px solid ${slotData.open>0?C.border:C.redBd}`,overflow:"hidden"}}>
             <div style={{padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -2120,14 +2122,14 @@ function LaunchModal({onClose,slotData,onDeployed}) {
 
   // Call anti-vamp backend if source URL provided
   let antiVampResult = null;
-  if (form.topicUrl && form.topicUrl.trim().length > 5) {
+  const twv=(form.twitter||"").trim();const wbv=(form.website||"").trim();let sourceUrl=null;if((twv.includes("x.com/")||twv.includes("twitter.com/"))&&twv.includes("/status/"))sourceUrl=twv;if(!sourceUrl&&wbv.length>5&&wbv.includes(".")&&wbv.includes("/"))sourceUrl=wbv;if(sourceUrl){
     try {
       const imgB64 = form.imageFile ? btoa(String.fromCharCode(...new Uint8Array(await form.imageFile.arrayBuffer()).slice(0, 10000))) : null;
       const avRes = await fetch(`${ANTIVAMP_URL}/canonicalize`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          source_url: form.topicUrl,
+          source_url: sourceUrl,
           image_base64: imgB64,
           mint: mk.publicKey.toBase58(),
           creator: provider.publicKey.toBase58(),
