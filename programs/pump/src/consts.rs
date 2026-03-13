@@ -27,20 +27,20 @@ pub const DEPLOY_INFRA_PCT: u64 = 10;
 /// 2-5 min  = 2.5% max wallet (250 bps)
 /// 5-10 min = 5%   max wallet (500 bps)
 /// 10+ min  = open (no cap)
-pub const SNIPE_WINDOW_1: i64 = 120;   // 0 → 2 min
-pub const SNIPE_WINDOW_2: i64 = 300;   // 2 → 5 min
-pub const SNIPE_WINDOW_3: i64 = 600;   // 5 → 10 min
-pub const SNIPE_BPS_1: u64 = 150;      // 1.5%
-pub const SNIPE_BPS_2: u64 = 250;      // 2.5%
-pub const SNIPE_BPS_3: u64 = 500;      // 5%
+pub const SNIPE_WINDOW_1: i64 = 120;
+pub const SNIPE_WINDOW_2: i64 = 300;
+pub const SNIPE_WINDOW_3: i64 = 600;
+pub const SNIPE_BPS_1: u64 = 150;
+pub const SNIPE_BPS_2: u64 = 250;
+pub const SNIPE_BPS_3: u64 = 500;
 
 /// ── Graduation fee (2.5% of pool SOL) ─────────────────
 /// Split: 60% stays as LP in Meteora, 20% protocol, 8% airdrop, 12% holder reserve
-pub const GRAD_FEE_BPS: u64 = 250;          // 2.5% total
-pub const GRAD_LP_BPS: u64 = 6000;          // 60% of fee
-pub const GRAD_PROTOCOL_BPS: u64 = 2000;    // 20% of fee
-pub const GRAD_AIRDROP_BPS: u64 = 800;      // 8% of fee
-pub const GRAD_HOLDER_BPS: u64 = 1200;      // 12% of fee
+pub const GRAD_FEE_BPS: u64 = 250;
+pub const GRAD_LP_BPS: u64 = 6000;
+pub const GRAD_PROTOCOL_BPS: u64 = 2000;
+pub const GRAD_AIRDROP_BPS: u64 = 800;
+pub const GRAD_HOLDER_BPS: u64 = 1200;
 
 /// Anti-vamp: MC threshold for protection activation (in USD cents)
 /// $100,000 = 10_000_000 cents
