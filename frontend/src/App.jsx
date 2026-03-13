@@ -96,8 +96,8 @@ const MILESTONES = [
 ];
 
 const CAP_WINDOWS = [
-  {until:7,pct:"1.5%",label:"0-7 min"},{until:14,pct:"2%",label:"7-14 min"},
-  {until:30,pct:"5%",label:"14-30 min"},{until:999,pct:"Open",label:"30 min+"},
+  {until:2,pct:"1.5%",label:"0-2 min"},{until:5,pct:"2.5%",label:"2-5 min"},
+  {until:10,pct:"5%",label:"5-10 min"},{until:999,pct:"Open",label:"10 min+"},
 ];
 
 // ===== SLOT ENGINE =====
@@ -624,7 +624,7 @@ function AirdropGate({t}) {
   const cfg={
     locked:{color:C.red,bg:C.redBg,bd:C.redBd,label:"Bonding curve filling",sub:`${(t.raisedSOL||0).toFixed(1)} / 85 SOL raised -- rewards unlock at 85 SOL`},
     pending:{color:C.gold,bg:C.goldBg,bd:C.goldBd,label:"Snapshot pending",sub:"Holder snapshot locks in after anti-snipe delay — 5 min post-graduation, 1hr pre-grad"},
-    live:{color:C.green,bg:C.greenBg,bd:C.greenBd,label:"Rewards live — migrated to Raydium",sub:"Quarterly USDC airdrop to all holders proportional by balance"},
+    live:{color:C.green,bg:C.greenBg,bd:C.greenBd,label:"Rewards live — migrated to Meteora",sub:"Quarterly USDC airdrop to all holders proportional by balance"},
   }[as.s];
 
   return (
@@ -1133,7 +1133,7 @@ function Card({t,onClick,rank}) {
         <Tag color={C.textTer}>{t.holders > 0 ? t.holders.toLocaleString() : "—"} holders</Tag>
         {as.s==="live"&&<Tag color={C.green}>Rewards live</Tag>}
         {as.s==="pending"&&<Tag color={C.gold}>Snapshot {as.minsLeft}m</Tag>}
-        {t.graduated&&<Tag color={C.raydium}>On Raydium</Tag>}
+        {t.graduated&&<Tag color={C.raydium}>On Meteora</Tag>}
         {t.bondingFull&&!t.graduated&&<Tag color={C.accent}>Bonded</Tag>}
         {(t.raisedSOL||0)>=60&&!t.bondingFull&&<Tag color={C.purple}>Near grad</Tag>}
       </div>
@@ -1160,9 +1160,9 @@ function GraduationModal({t,onClose}) {
       <div style={{background:C.sheet,borderRadius:10,padding:"28px 24px",textAlign:"center",maxWidth:320,width:"92%",border:`1px solid ${C.border}`,boxShadow:"0 40px 80px rgba(0,0,0,0.6)",animation:"scaleIn 0.22s ease"}} onClick={e=>e.stopPropagation()}>
         <div style={{width:56,height:56,borderRadius:8,background:C.raydiumBg,border:`1px solid ${C.raydiumBd}`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px"}}><svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M4 11L9 16L18 6" stroke={C.raydium} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg></div>
         <Label size={20} color={C.text} weight={700} style={{display:"block",marginBottom:6}}>Graduated</Label>
-        <Label size={13} color={C.textSec} style={{display:"block",lineHeight:1.6,marginBottom:20}}>LP locked on Raydium. Auto-submitted to Dexscreener. All fees now compound to LP forever.</Label>
+        <Label size={13} color={C.textSec} style={{display:"block",lineHeight:1.6,marginBottom:20}}>LP locked on Meteora. Auto-submitted to Dexscreener. All fees now compound to LP forever.</Label>
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
-          <Btn full color={C.raydium}>View on Raydium</Btn>
+          <Btn full color={C.raydium}>View on Meteora</Btn>
           <Btn full color={C.teal}>View on Dexscreener</Btn>
           <Btn full variant="ghost" onClick={onClose}>Back</Btn>
         </div>
@@ -1934,7 +1934,7 @@ function LaunchModal({onClose,slotData,onDeployed}) {
           {/* Graduation notice */}
           <div style={{background:C.raydiumBg,border:`1px solid ${C.raydiumBd}`,borderRadius:8,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"flex-start",gap:10}}>
             <div style={{width:6,height:6,borderRadius:"50%",background:C.raydium,flexShrink:0,marginTop:4}}/>
-            <Label size={12} color={C.textSec} style={{lineHeight:1.6}}>On graduation LP migrates to Raydium and locks forever. All fees compound back into LP depth automatically on every trade.</Label>
+            <Label size={12} color={C.textSec} style={{lineHeight:1.6}}>On graduation LP migrates to Meteora and locks forever. All fees compound back into LP depth automatically on every trade.</Label>
           </div>
 
           {/* Airdrop mechanics — updated to match simple quarterly model */}
@@ -2566,7 +2566,7 @@ function Tokenomics({onClose}) {
             </GlassCard>
 
             {[
-              {title:"Bonding curve → Raydium",color:C.accent,desc:"Every token launches on a bonding curve targeting 85 SOL. Once filled, LP migrates to Raydium CLMM and locks forever."},
+              {title:"Bonding curve → Meteora",color:C.accent,desc:"Every token launches on a bonding curve targeting 85 SOL. Once filled, LP migrates to Meteora DAMM v2 and locks forever."},
               {title:"Quarterly USDC airdrop",color:C.gold,desc:"0.50% of every swap accumulates in an airdrop pool. Each quarter, USDC is distributed to all holders proportional by balance. No staking, no claiming — automatic."},
               {title:"Volume opens slots",color:C.blue,desc:"There is no fixed daily launch limit. Every $10K in platform volume unlocks a new launch slot. Hot days = more launches. Dead days = fewer. The market self-regulates."},
               {title:"Identity PVP",color:C.purple,desc:"Link your Twitter or website at deploy time. That identity locks to your CA on-chain. All derivatives and copycats are blocked. First mover with a link wins the narrative permanently."},
@@ -2668,10 +2668,10 @@ function Tokenomics({onClose}) {
               </div>
               <div style={{borderTop:`1px solid ${C.border}`}}/>
               {[
-                {window:"0 – 7 min",   cap:"1.5%", tokens:"9.75M tokens",col:C.red},
-                {window:"7 – 14 min",  cap:"2.0%", tokens:"13M tokens",  col:C.accent},
-                {window:"14 – 30 min", cap:"5.0%", tokens:"32.5M tokens",col:C.gold},
-                {window:"30 min+",     cap:"Open", tokens:"No cap",       col:C.textTer},
+                {window:"0 – 2 min",   cap:"1.5%", tokens:"9.75M tokens",col:C.red},
+                {window:"2 – 5 min",   cap:"2.5%", tokens:"16.25M tokens",col:C.accent},
+                {window:"5 – 10 min",  cap:"5.0%", tokens:"32.5M tokens",col:C.gold},
+                {window:"10 min+",     cap:"Open", tokens:"No cap",       col:C.textTer},
               ].map((r,i,a)=>(
                 <div key={r.window} style={{display:"flex",alignItems:"center",padding:"11px 20px",borderBottom:i<a.length-1?`1px solid ${C.border}`:"none",gap:0}}>
                   <Label size={11} color={C.textTer} style={{width:96,flexShrink:0}}>{r.window}</Label>
