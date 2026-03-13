@@ -1,16 +1,17 @@
 {
-  "name": "summit-moon-antivamp",
-  "version": "1.0.0",
+  "name": "summitmoon-antivamp",
+  "version": "1.1.0",
   "type": "module",
+  "main": "antivamp-server.js",
   "scripts": {
-    "start": "node antivamp-server.js",
-    "dev": "node antivamp-server.js"
+    "start": "node antivamp-server.js"
   },
   "dependencies": {
-    "express": "^4.18.0",
+    "express": "^4.18.2",
     "cors": "^2.8.5",
     "tweetnacl": "^1.0.3",
-    "@solana/web3.js": "^1.95.0",
-    "sharp": "^0.33.0"
+    "@solana/web3.js": "^1.91.0",
+    "@supabase/supabase-js": "^2.39.0",
+    "sharp": "^0.33.2"
   }
 }
