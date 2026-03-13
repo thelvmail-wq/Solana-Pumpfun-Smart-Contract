@@ -9,7 +9,7 @@ pub mod utils;
 
 use crate::instructions::*;
 
-declare_id!("73wyBdTRbZPegtYQbjs4uCAvkiUK9wWKd91WWJHyYL3j");
+declare_id!("9cuFeeHRpr3yfjzeHLm84z95JPGaRgASwV4YY7PaMtkx");
 
 #[program]
 pub mod pump {
@@ -40,49 +40,51 @@ pub mod pump {
         instructions::remove_liquidity(ctx, nonce, init_pc_amount)
     }
 
-    pub fn swap(ctx: Context<Swap>, amount: u64, style: u64, min_amount_out: u64) -> Result<()> {
-        instructions::swap(ctx, amount, style, min_amount_out)
+    pub fn swap(ctx: Context<Swap>, amount: u64, style: u64) -> Result<()> {
+        instructions::swap(ctx, amount, style)
     }
 
+    /// DEPRECATED: Use prepare_migration + confirm_migration instead.
+    /// Kept for backward compatibility with existing IDL references.
     pub fn migrate_to_raydium(ctx: Context<MigrateToRaydium>, nonce: u8) -> Result<()> {
         instructions::migrate_to_raydium(ctx, nonce)
     }
 
-    pub fn create_token_registry(
-        ctx: Context<CreateTokenRegistry>,
+    /// Step 1 of Meteora migration: extract SOL + tokens from bonding curve,
+    /// distribute graduation fees, send remaining funds to migration bot wallet.
+    /// Permissionless — anyone can call after graduation.
+    pub fn prepare_migration(ctx: Context<PrepareMigration>) -> Result<()> {
+        instructions::prepare_migration(ctx)
+    }
+
+    /// Step 2 of Meteora migration: bot confirms the Meteora pool was created
+    /// and stores the pool address on-chain. Only callable by protocol_wallet.
+    pub fn confirm_migration(ctx: Context<ConfirmMigration>, meteora_pool: Pubkey) -> Result<()> {
+        instructions::confirm_migration(ctx, meteora_pool)
+    }
+
+    /// Register a new token's metadata for anti-vamp protection.
+    /// Called at deploy time. If a protected token already holds the same
+    /// ticker/image/identity hash, Anchor's init will fail → deploy blocked.
+    pub fn register_token(
+        ctx: Context<RegisterToken>,
         ticker_hash: [u8; 32],
         image_hash: [u8; 32],
         identity_hash: [u8; 32],
         ticker_raw: [u8; 16],
     ) -> Result<()> {
-        instructions::create_token_registry(ctx, ticker_hash, image_hash, identity_hash, ticker_raw)
+        instructions::register_token(ctx, ticker_hash, image_hash, identity_hash, ticker_raw)
     }
 
-    pub fn claim_locks(
-        ctx: Context<ClaimLocks>,
-        ticker_hash: [u8; 32],
-        image_hash: [u8; 32],
-        identity_hash: [u8; 32],
-    ) -> Result<()> {
-        instructions::claim_locks(ctx, ticker_hash, image_hash, identity_hash)
-    }
-
+    /// Keeper-only: activate protection when token MC > $100K.
+    /// Locks ticker, image, and identity — no new token can reuse them.
     pub fn activate_protection(ctx: Context<ActivateProtection>) -> Result<()> {
         instructions::activate_protection(ctx)
     }
 
+    /// Keeper-only: deactivate protection when token MC drops below $100K.
+    /// Unlocks ticker, image, and identity for reuse.
     pub fn deactivate_protection(ctx: Context<DeactivateProtection>) -> Result<()> {
         instructions::deactivate_protection(ctx)
-    }
-
-    pub fn create_source_lock(
-        ctx: Context<CreateSourceLock>,
-        source_hash: [u8; 32],
-        image_phash: [u8; 8],
-        expiry_timestamp: i64,
-        ed25519_sig: [u8; 64],
-        ed25519_pubkey: [u8; 32],
-    ) -> Result<()> {
-        instructions::create_source_lock(ctx, source_hash, image_phash, expiry_timestamp, ed25519_sig, ed25519_pubkey)
     }
 }
