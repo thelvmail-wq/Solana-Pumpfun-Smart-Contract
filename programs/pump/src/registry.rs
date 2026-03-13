@@ -90,3 +90,23 @@ impl IdentityLock {
     // Discriminator (8) + Pubkey (32) + [u8;32] (32) + bool (1) + i64 (8) + u8 (1)
     pub const ACCOUNT_SIZE: usize = 8 + 32 + 32 + 1 + 8 + 1;
 }
+
+/// Source lock PDA: one tweet/article = one token.
+/// First transaction to create this PDA wins.
+/// Chain is the only authority — backend is just a signer oracle.
+#[account]
+pub struct SourceLock {
+    pub source_hash: [u8; 32],     // SHA-256 of canonical key (e.g. "x:1234567890")
+    pub image_phash: [u8; 8],      // 64-bit perceptual hash of source image
+    pub mint: Pubkey,              // Token mint this source is locked to
+    pub creator: Pubkey,           // Wallet that deployed the token
+    pub created_at: i64,           // Slot timestamp when lock was created
+    pub bump: u8,
+}
+
+impl SourceLock {
+    pub const SEED_PREFIX: &'static str = "source_lock";
+
+    // Discriminator (8) + [u8;32] (32) + [u8;8] (8) + Pubkey (32) + Pubkey (32) + i64 (8) + u8 (1)
+    pub const ACCOUNT_SIZE: usize = 8 + 32 + 8 + 32 + 32 + 8 + 1;
+}

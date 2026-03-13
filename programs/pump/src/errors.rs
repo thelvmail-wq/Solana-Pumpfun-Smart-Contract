@@ -67,4 +67,13 @@ pub enum CustomError {
 
     #[msg("No deploy slots available")]
     NoSlotsAvailable,
+
+    #[msg("Ed25519 signature verification failed")]
+    Ed25519VerificationFailed,
+
+    #[msg("Backend signature has expired")]
+    SignatureExpired,
+
+    #[msg("Invalid anti-vamp signer pubkey")]
+    InvalidSigner,
 }

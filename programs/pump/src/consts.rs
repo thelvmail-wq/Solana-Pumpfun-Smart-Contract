@@ -33,3 +33,7 @@ pub const MC_PROTECTION_THRESHOLD_CENTS: u64 = 10_000_000;
 
 /// Identity lock cooldown: 24 hours in seconds
 pub const IDENTITY_COOLDOWN_SECS: i64 = 86_400;
+
+/// Anti-vamp source lock: backend signature TTL in seconds
+/// Must match SIGNATURE_TTL_SEC in antivamp-server.js (120s)
+pub const SIGNATURE_TTL_SECS: i64 = 120;

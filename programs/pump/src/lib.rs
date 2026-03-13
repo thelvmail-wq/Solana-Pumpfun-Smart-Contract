@@ -74,4 +74,15 @@ pub mod pump {
     pub fn deactivate_protection(ctx: Context<DeactivateProtection>) -> Result<()> {
         instructions::deactivate_protection(ctx)
     }
+
+    pub fn create_source_lock(
+        ctx: Context<CreateSourceLock>,
+        source_hash: [u8; 32],
+        image_phash: [u8; 8],
+        expiry_timestamp: i64,
+        ed25519_sig: [u8; 64],
+        ed25519_pubkey: [u8; 32],
+    ) -> Result<()> {
+        instructions::create_source_lock(ctx, source_hash, image_phash, expiry_timestamp, ed25519_sig, ed25519_pubkey)
+    }
 }
