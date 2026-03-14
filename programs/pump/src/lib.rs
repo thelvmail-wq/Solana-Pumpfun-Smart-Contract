@@ -22,7 +22,7 @@ pub mod pump {
         airdrop_wallet: Pubkey,
         migration_authority: Pubkey,
     ) -> Result<()> {
-        instructions::initialize(ctx, fee, protocol_wallet, airdrop_wallet, migration_authority)
+        instructions::initialize::initialize(ctx, fee, protocol_wallet, airdrop_wallet, migration_authority)
     }
 
     pub fn add_liquidity(
@@ -30,7 +30,7 @@ pub mod pump {
         amount_one: u64,
         amount_two: u64,
     ) -> Result<()> {
-        instructions::add_liquidity(ctx, amount_one, amount_two)
+        instructions::add_liquidity::add_liquidity(ctx, amount_one, amount_two)
     }
 
     pub fn remove_liquidity(
@@ -38,49 +38,53 @@ pub mod pump {
         nonce: u8,
         init_pc_amount: u64,
     ) -> Result<()> {
-        instructions::remove_liquidity(ctx, nonce, init_pc_amount)
+        instructions::remove_liquidity::remove_liquidity(ctx, nonce, init_pc_amount)
     }
 
     pub fn swap(ctx: Context<Swap>, amount: u64, style: u64) -> Result<()> {
-        instructions::swap(ctx, amount, style)
+        instructions::swap::swap(ctx, amount, style)
     }
 
-    /// DEPRECATED — kept for IDL compatibility
     pub fn migrate_to_raydium(ctx: Context<MigrateToRaydium>, nonce: u8) -> Result<()> {
-        instructions::migrate_to_raydium(ctx, nonce)
+        instructions::migrate::migrate_to_raydium(ctx, nonce)
     }
-
-    // ── Migration (escrow PDA) ──────────────────────────
 
     pub fn prepare_migration(ctx: Context<PrepareMigration>) -> Result<()> {
-        instructions::prepare_migration(ctx)
+        instructions::migrate::prepare_migration(ctx)
     }
 
     pub fn release_escrow(ctx: Context<ReleaseEscrow>) -> Result<()> {
-        instructions::release_escrow(ctx)
+        instructions::migrate::release_escrow(ctx)
     }
 
     pub fn cancel_escrow(ctx: Context<CancelEscrow>) -> Result<()> {
-        instructions::cancel_escrow(ctx)
+        instructions::migrate::cancel_escrow(ctx)
     }
 
-    // ── Anti-vamp ───────────────────────────────────────
-
-    pub fn register_token(
-        ctx: Context<RegisterToken>,
+    pub fn create_token_registry(
+        ctx: Context<CreateTokenRegistry>,
         ticker_hash: [u8; 32],
         image_hash: [u8; 32],
         identity_hash: [u8; 32],
         ticker_raw: [u8; 16],
     ) -> Result<()> {
-        instructions::register_token(ctx, ticker_hash, image_hash, identity_hash, ticker_raw)
+        instructions::register_token::create_token_registry(ctx, ticker_hash, image_hash, identity_hash, ticker_raw)
+    }
+
+    pub fn claim_locks(
+        ctx: Context<ClaimLocks>,
+        ticker_hash: [u8; 32],
+        image_hash: [u8; 32],
+        identity_hash: [u8; 32],
+    ) -> Result<()> {
+        instructions::register_token::claim_locks(ctx, ticker_hash, image_hash, identity_hash)
     }
 
     pub fn activate_protection(ctx: Context<ActivateProtection>) -> Result<()> {
-        instructions::activate_protection(ctx)
+        instructions::register_token::activate_protection(ctx)
     }
 
     pub fn deactivate_protection(ctx: Context<DeactivateProtection>) -> Result<()> {
-        instructions::deactivate_protection(ctx)
+        instructions::register_token::deactivate_protection(ctx)
     }
 }
