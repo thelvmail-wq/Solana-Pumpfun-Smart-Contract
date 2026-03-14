@@ -47,6 +47,27 @@ export async function fetchMigrationState(mintPubkey) {
   }
 }
 
+
+// ── Migration state from Supabase ─────────
+export async function fetchMigrationState(mintPubkey) {
+  try {
+    const rows = await supabaseGet('graduated_pools', 'mint=eq.' + mintPubkey + '&limit=1')
+    if (!rows || rows.length === 0) return { status: 'none' }
+    const r = rows[0]
+    return {
+      status: r.status || 'pending',
+      meteoraPool: r.meteora_pool || null,
+      solMigrated: r.sol_migrated || 0,
+      tokensMigrated: r.tokens_migrated || 0,
+      migratedAt: r.migrated_at || null,
+      error: r.error_msg || null,
+    }
+  } catch (e) {
+    console.warn('fetchMigrationState error:', e.message)
+    return { status: 'none' }
+  }
+}
+
 // Discriminators
 const DISCRIMINATORS = {
   add_liquidity: Buffer.from('b59d59438fb63448', 'hex'),
