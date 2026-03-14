@@ -1549,41 +1549,7 @@ function TokenPage({t:tProp,onClose,connected,onConnect}) {
     : migState?.status === 'pending' ? 'MIGRATING'
     : 'GRADUATED';
 
-  const [migState, setMigState] = useState(null);
-  useEffect(()=>{
-    const mintStr = t.mint || t.mintAddress;
-    if(!mintStr || !t.graduated) return;
-    fetchMigrationState(mintStr).then(s => setMigState(s)).catch(()=>{});
-    const iv = setInterval(()=>{
-      fetchMigrationState(mintStr).then(s => setMigState(s)).catch(()=>{});
-    }, 10000);
-    return ()=> clearInterval(iv);
-  }, [t.mint, t.mintAddress, t.graduated]);
 
-  const gradState = !t.graduated ? 'TRADING'
-    : t.migrationComplete ? 'LIVE'
-    : migState?.status === 'live' ? 'LIVE'
-    : migState?.status === 'failed' ? 'FAILED'
-    : migState?.status === 'pending' ? 'MIGRATING'
-    : 'GRADUATED';
-
-  const [migState, setMigState] = useState(null);
-  useEffect(()=>{
-    const mintStr = t.mint || t.mintAddress;
-    if(!mintStr || !t.graduated) return;
-    fetchMigrationState(mintStr).then(s => setMigState(s)).catch(()=>{});
-    const iv = setInterval(()=>{
-      fetchMigrationState(mintStr).then(s => setMigState(s)).catch(()=>{});
-    }, 10000);
-    return ()=> clearInterval(iv);
-  }, [t.mint, t.mintAddress, t.graduated]);
-
-  const gradState = !t.graduated ? 'TRADING'
-    : t.migrationComplete ? 'LIVE'
-    : migState?.status === 'live' ? 'LIVE'
-    : migState?.status === 'failed' ? 'FAILED'
-    : migState?.status === 'pending' ? 'MIGRATING'
-    : 'GRADUATED';
 
   // Map UI range to Supabase timeframe
   const tfMap = {"5M":"5m","15M":"15m","1H":"1h","4H":"4h","1D":"1d"};
