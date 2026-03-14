@@ -1517,7 +1517,7 @@ function TradesTab({t}) {
 
 function TokenPage({t:tProp,onClose,connected,onConnect}) {
   const [tokenData, setTokenData] = useState(tProp);
-  const t={...tokenData,txs:tokenData.txs||0,vol:tokenData.vol||"$0",volRaw:tokenData.volRaw||0,holders:tokenData.holders||0,prog:tokenData.prog||0,age:tokenData.age||0,raisedSOL:tokenData.raisedSOL||0,raisedSOLMax:tokenData.raisedSOLMax||85,elapsed:tokenData.elapsed||0,mcap:tokenData.mcap||0,chg:tokenData.chg||0,bondingFull:tokenData.bondingFull||false,graduated:tokenData.graduated||false,migrationState:tokenData.migrationState||null,meteoraPoolKey:tokenData.meteoraPoolKey||null,migrationComplete:tokenData.migrationComplete||false,graduationTs:tokenData.graduationTs||0,migrationState:tokenData.migrationState||null,meteoraPoolKey:tokenData.meteoraPoolKey||null,migrationComplete:tokenData.migrationComplete||false,graduationTs:tokenData.graduationTs||0,topicLocked:tokenData.topicLocked||false,sym:tokenData.sym||"???",name:tokenData.name||tokenData.sym||"Unknown",desc:tokenData.desc||"",minsAgo:tokenData.minsAgo||0,pi:tokenData.pi||0,mint:tokenData.mint||tokenData.id,mintAddress:tokenData.mintAddress||tokenData.mint||tokenData.id};
+  const t={...tokenData,txs:tokenData.txs||0,vol:tokenData.vol||"$0",volRaw:tokenData.volRaw||0,holders:tokenData.holders||0,prog:tokenData.prog||0,age:tokenData.age||0,raisedSOL:tokenData.raisedSOL||0,raisedSOLMax:tokenData.raisedSOLMax||85,elapsed:tokenData.elapsed||0,mcap:tokenData.mcap||0,chg:tokenData.chg||0,bondingFull:tokenData.bondingFull||false,graduated:tokenData.graduated||false,meteoraPoolKey:tokenData.meteoraPoolKey||null,migrationComplete:tokenData.migrationComplete||false,graduationTs:tokenData.graduationTs||0,migrationState:tokenData.migrationState||null,meteoraPoolKey:tokenData.meteoraPoolKey||null,migrationComplete:tokenData.migrationComplete||false,graduationTs:tokenData.graduationTs||0,migrationState:tokenData.migrationState||null,meteoraPoolKey:tokenData.meteoraPoolKey||null,migrationComplete:tokenData.migrationComplete||false,graduationTs:tokenData.graduationTs||0,topicLocked:tokenData.topicLocked||false,sym:tokenData.sym||"???",name:tokenData.name||tokenData.sym||"Unknown",desc:tokenData.desc||"",minsAgo:tokenData.minsAgo||0,pi:tokenData.pi||0,mint:tokenData.mint||tokenData.id,mintAddress:tokenData.mintAddress||tokenData.mint||tokenData.id};
   const [range,setRange]=useState("1H");
   const [rightTab,setRightTab]=useState("swap");
   const [candles,setCandles]=useState(()=>genCandles(80,0.00004+Math.random()*0.0001));
@@ -1531,6 +1531,23 @@ function TokenPage({t:tProp,onClose,connected,onConnect}) {
       if(count > 0) setTokenData(prev => ({...prev, holders: count}));
     }).catch(()=>{});
   }, [t.mint, t.mintAddress]);
+
+  const [migState, setMigState] = useState(null);
+  useEffect(()=>{
+    const mintStr = t.mint || t.mintAddress;
+    if(!mintStr || !t.graduated) return;
+    fetchMigrationState(mintStr).then(s => setMigState(s)).catch(()=>{});
+    const iv = setInterval(()=>{
+      fetchMigrationState(mintStr).then(s => setMigState(s)).catch(()=>{});
+    }, 10000);
+    return ()=> clearInterval(iv);
+  }, [t.mint, t.mintAddress, t.graduated]);
+
+  const gradState = !t.graduated ? 'TRADING'
+    : t.migrationComplete ? 'LIVE'
+    : migState?.status === 'live' ? 'LIVE'
+    : migState?.status === 'pending' ? 'MIGRATING'
+    : 'GRADUATED';
 
   const [migState, setMigState] = useState(null);
   useEffect(()=>{
