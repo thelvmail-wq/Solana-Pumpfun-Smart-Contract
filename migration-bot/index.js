@@ -31,7 +31,7 @@ const fs = require('fs');
 // ============================================================
 
 const RPC_URL = process.env.RPC_URL || 'https://api.devnet.solana.com';
-const PROGRAM_ID = new PublicKey(process.env.PROGRAM_ID || '9cuFeeHRpr3yfjzeHLm84z95JPGaRgASwV4YY7PaMtkx');
+const PROGRAM_ID = new PublicKey(process.env.PROGRAM_ID || 'BQ51fq1UavsR8typUWE4y4EsYN7tSF1cVfU27wVrHP6C');
 const HELIUS_API_KEY = process.env.HELIUS_API_KEY || '058c5cbb-e6d6-4f09-a110-aaa298b485c1';
 const METEORA_PROGRAM_ID = new PublicKey('cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG');
 const WSOL_MINT = new PublicKey('So11111111111111111111111111111111111111112');

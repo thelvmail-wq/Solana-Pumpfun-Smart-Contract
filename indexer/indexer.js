@@ -11,7 +11,7 @@ import { Connection, PublicKey } from '@solana/web3.js';
 import { createClient } from '@supabase/supabase-js';
 
 // ── Config ────────────────────────────────────────
-const PROGRAM_ID = new PublicKey('73wyBdTRbZPegtYQbjs4uCAvkiUK9wWKd91WWJHyYL3j');
+const PROGRAM_ID = new PublicKey('BQ51fq1UavsR8typUWE4y4EsYN7tSF1cVfU27wVrHP6C');
 const RPC_URL = 'https://api.devnet.solana.com';
 const connection = new Connection(RPC_URL, 'confirmed');
 
