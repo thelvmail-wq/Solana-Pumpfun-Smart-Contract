@@ -1956,19 +1956,11 @@ function LaunchModal({onClose,slotData,onDeployed}) {
             ))}
           </div>
 
-          {/* Graduation notice */}
-          {gradState==="TRADING"&&<div style={{background:C.raydiumBg,border:`1px solid ${C.raydiumBd}`,borderRadius:8,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"flex-start",gap:10}}>
+          {/* Graduation info — static, new tokens always start on bonding curve */}
+          <div style={{background:C.raydiumBg,border:`1px solid ${C.raydiumBd}`,borderRadius:8,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"flex-start",gap:10}}>
             <div style={{width:6,height:6,borderRadius:"50%",background:C.raydium,flexShrink:0,marginTop:4}}/>
             <Label size={12} color={C.textSec} style={{lineHeight:1.6}}>On graduation LP migrates to Meteora and locks forever. All fees compound back into LP depth automatically on every trade.</Label>
-          </div>}
-          {(gradState==="GRADUATED"||gradState==="MIGRATING")&&<div style={{background:C.goldBg,border:`1px solid ${C.goldBd}`,borderRadius:8,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"flex-start",gap:10}}>
-            <div style={{width:6,height:6,borderRadius:"50%",background:C.gold,flexShrink:0,marginTop:4,animation:"pulse 2s infinite"}}/>
-            <Label size={12} color={C.gold} style={{lineHeight:1.6}}>{gradState==="GRADUATED"?"Bonding curve complete! Migration to Meteora starting soon.":"Migrating to Meteora DAMM v2. LP locks automatically. Usually takes 1-2 minutes."}</Label>
-          </div>}
-          {gradState==="LIVE"&&<div style={{background:C.raydiumBg,border:`1px solid ${C.raydiumBd}`,borderRadius:8,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"flex-start",gap:10}}>
-            <div style={{width:6,height:6,borderRadius:"50%",background:C.raydium,flexShrink:0,marginTop:4}}/>
-            <Label size={12} color={C.raydium} style={{lineHeight:1.6}}>Live on Meteora. LP locked forever. Trade via Jupiter — 1% partner fee compounds back into LP.</Label>
-          </div>}
+          </div>
 
           {/* Airdrop mechanics — updated to match simple quarterly model */}
           <div style={{background:C.goldBg,border:`1px solid ${C.goldBd}`,borderRadius:8,padding:"12px 14px",marginBottom:14}}>
