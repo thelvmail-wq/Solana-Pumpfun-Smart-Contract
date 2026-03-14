@@ -16,18 +16,20 @@ pub struct CurveConfiguration {
     pub protocol_wallet: Pubkey,
     pub airdrop_wallet: Pubkey,
     pub antivamp_signer: Pubkey,
+    pub migration_authority: Pubkey,
 }
 
 impl CurveConfiguration {
     pub const SEED: &'static str = "CurveConfiguration";
-    // 8 discriminator + 8 fees + 32 protocol + 32 airdrop + 32 antivamp
-    pub const ACCOUNT_SIZE: usize = 8 + 8 + 32 + 32 + 32;
+    // 8 disc + 8 fees + 32 protocol + 32 airdrop + 32 antivamp + 32 migration
+    pub const ACCOUNT_SIZE: usize = 8 + 8 + 32 + 32 + 32 + 32;
     pub fn new(fees: f64, protocol_wallet: Pubkey, airdrop_wallet: Pubkey) -> Self {
         Self {
             fees,
             protocol_wallet,
             airdrop_wallet,
             antivamp_signer: Pubkey::default(),
+            migration_authority: Pubkey::default(),
         }
     }
 }
@@ -160,7 +162,6 @@ impl<'info> LiquidityPoolAccount<'info> for Account<'info, LiquidityPool> {
         self.airdrop_pool = self.airdrop_pool.saturating_add(airdrop_fee);
 
         if style == 1 {
-            // SELL: user sends tokens, gets SOL back
             let denom = self.reserve_one.checked_add(adj).ok_or(CustomError::OverflowOrUnderflowOccurred)?;
             let div_amt = convert_to_float(denom, t1.0.decimals).div(convert_to_float(adj, t1.0.decimals));
             let out_f = convert_to_float(self.reserve_two, 9u8).div(div_amt);
@@ -182,7 +183,6 @@ impl<'info> LiquidityPoolAccount<'info> for Account<'info, LiquidityPool> {
                 amount_out,
             )?;
         } else {
-            // BUY: user sends SOL, gets tokens
             let denom = self.reserve_two.checked_add(adj).ok_or(CustomError::OverflowOrUnderflowOccurred)?;
             let div_amt = convert_to_float(denom, t1.0.decimals).div(convert_to_float(adj, t1.0.decimals));
             let out_f = convert_to_float(self.reserve_one, 9u8).div(div_amt);
@@ -192,13 +192,13 @@ impl<'info> LiquidityPoolAccount<'info> for Account<'info, LiquidityPool> {
             let elapsed = clock.unix_timestamp.saturating_sub(self.launch_timestamp);
             let total_tokens = t1.0.supply;
             let max_bps: Option<u64> = if elapsed < SNIPE_WINDOW_1 {
-                Some(SNIPE_BPS_1)       // 0-2 min: 1.5%
+                Some(SNIPE_BPS_1)
             } else if elapsed < SNIPE_WINDOW_2 {
-                Some(SNIPE_BPS_2)       // 2-5 min: 2.5%
+                Some(SNIPE_BPS_2)
             } else if elapsed < SNIPE_WINDOW_3 {
-                Some(SNIPE_BPS_3)       // 5-10 min: 5%
+                Some(SNIPE_BPS_3)
             } else {
-                None                     // 10+ min: open
+                None
             };
             if let Some(bps) = max_bps {
                 let max_t = (total_tokens as u128).checked_mul(bps as u128).unwrap().checked_div(10_000).unwrap() as u64;
