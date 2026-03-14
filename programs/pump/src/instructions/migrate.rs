@@ -200,8 +200,17 @@ pub fn release_escrow(ctx: Context<ReleaseEscrow>) -> Result<()> {
     let sol_to_send = escrow_sol.saturating_sub(min_rent);
 
     if sol_to_send > 0 {
-        **ctx.accounts.escrow.to_account_info().try_borrow_mut_lamports()? -= sol_to_send;
-        **ctx.accounts.bot.to_account_info().try_borrow_mut_lamports()? += sol_to_send;
+        anchor_lang::system_program::transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.system_program.to_account_info(),
+                anchor_lang::system_program::Transfer {
+                    from: ctx.accounts.escrow.to_account_info(),
+                    to: ctx.accounts.bot.to_account_info(),
+                },
+                &[&[b"migration_escrow", mint_key.as_ref(), &[escrow_bump]]],
+            ),
+            sol_to_send,
+        )?;
     }
 
     // Transfer tokens from escrow ATA to bot ATA
@@ -284,8 +293,17 @@ pub fn cancel_escrow(ctx: Context<CancelEscrow>) -> Result<()> {
     let sol_to_return = escrow_sol.saturating_sub(min_rent);
 
     if sol_to_return > 0 {
-        **ctx.accounts.escrow.to_account_info().try_borrow_mut_lamports()? -= sol_to_return;
-        **ctx.accounts.global_account.to_account_info().try_borrow_mut_lamports()? += sol_to_return;
+        anchor_lang::system_program::transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.system_program.to_account_info(),
+                anchor_lang::system_program::Transfer {
+                    from: ctx.accounts.escrow.to_account_info(),
+                    to: ctx.accounts.global_account.to_account_info(),
+                },
+                &[&[b"migration_escrow", ctx.accounts.coin_mint.key().as_ref(), &[ctx.bumps.escrow]]],
+            ),
+            sol_to_return,
+        )?;
     }
 
     if escrow_tokens > 0 {

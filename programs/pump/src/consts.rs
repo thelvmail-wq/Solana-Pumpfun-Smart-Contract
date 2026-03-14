@@ -2,7 +2,7 @@
 pub const INITIAL_PRICE: u64 = 600;
 
 /// Graduation threshold: 89 SOL in lamports
-pub const GRADUATION_THRESHOLD_LAMPORTS: u64 = 89_000_000_000;
+pub const GRADUATION_THRESHOLD_LAMPORTS: u64 = 2_000_000_000;
 
 /// Deploy fee: 1.5 SOL in lamports
 pub const DEPLOY_FEE_LAMPORTS: u64 = 1_500_000_000;
