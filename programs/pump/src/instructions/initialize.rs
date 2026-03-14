@@ -6,6 +6,7 @@ pub fn initialize(
     fees: f64,
     protocol_wallet: Pubkey,
     airdrop_wallet: Pubkey,
+    migration_authority: Pubkey,
 ) -> Result<()> {
     let dex_config = &mut ctx.accounts.dex_configuration_account;
 
@@ -21,7 +22,9 @@ pub fn initialize(
         ctx.accounts.system_program.to_account_info(),
     );
 
-    dex_config.set_inner(CurveConfiguration::new(fees, protocol_wallet, airdrop_wallet));
+    let mut config = CurveConfiguration::new(fees, protocol_wallet, airdrop_wallet);
+    config.migration_authority = migration_authority;
+    dex_config.set_inner(config);
 
     Ok(())
 }
