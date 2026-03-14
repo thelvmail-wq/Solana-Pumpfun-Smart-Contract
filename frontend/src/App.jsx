@@ -1155,15 +1155,15 @@ function Card({t,onClick,rank}) {
 
 // ===== GRADUATION MODAL =====
 
-function GraduationModal({t,onClose}) {
+function GraduationModal({t,gradState,migState,onClose}) {
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(30px)",animation:"fadeIn 0.2s ease"}} onClick={onClose}>
       <div style={{background:C.sheet,borderRadius:10,padding:"28px 24px",textAlign:"center",maxWidth:320,width:"92%",border:`1px solid ${C.border}`,boxShadow:"0 40px 80px rgba(0,0,0,0.6)",animation:"scaleIn 0.22s ease"}} onClick={e=>e.stopPropagation()}>
         <div style={{width:56,height:56,borderRadius:8,background:C.raydiumBg,border:`1px solid ${C.raydiumBd}`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px"}}><svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M4 11L9 16L18 6" stroke={C.raydium} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg></div>
-        <Label size={20} color={C.text} weight={700} style={{display:"block",marginBottom:6}}>{gradState==="LIVE"?"Live on Meteora":gradState==="MIGRATING"?"Migrating...":gradState==="FAILED"?"Migration failed":"Graduated"}</Label>
-        <Label size={13} color={C.textSec} style={{display:"block",lineHeight:1.6,marginBottom:4}}>{gradState==="LIVE"?"LP locked forever. Trading via Jupiter. All fees compound back into LP.":gradState==="MIGRATING"?"Setting up LP on Meteora DAMM v2. Usually takes 1-2 minutes.":gradState==="FAILED"?(migState?.error||"Migration failed. Funds safe in escrow."):"Bonding curve complete. Migration to Meteora starting soon."}</Label>
+        <Label size={20} color={C.text} weight={700} style={{display:"block",marginBottom:6}}>{gradState==="LIVE"?"Live on Meteora":gradState==="MIGRATING"?"Migrating...":"Graduated"}</Label>
+        <Label size={13} color={C.textSec} style={{display:"block",lineHeight:1.6,marginBottom:4}}>{gradState==="LIVE"?"LP locked forever. Trading via Jupiter. All fees compound back into LP.":gradState==="MIGRATING"?"Setting up LP on Meteora DAMM v2. Usually takes 1-2 minutes.":"Bonding curve complete. Migration to Meteora starting soon."}</Label>
         <div style={{display:"flex",gap:4,margin:"12px 0",justifyContent:"center"}}>
-          {["GRADUATED","MIGRATING","LIVE"].map((s,i)=>{const idx=["GRADUATED","MIGRATING","LIVE"].indexOf(gradState==="FAILED"?"MIGRATING":gradState);return <div key={s} style={{height:3,flex:1,maxWidth:60,borderRadius:99,background:i<=idx?(gradState==="FAILED"?"#ff453a":C.raydium):"rgba(255,255,255,0.08)",opacity:i===idx?1:i<idx?0.5:0.2}}/>;})}
+          {["GRADUATED","MIGRATING","LIVE"].map((s,i)=>{const idx=["GRADUATED","MIGRATING","LIVE"].indexOf(gradState);return <div key={s} style={{height:3,flex:1,maxWidth:60,borderRadius:99,background:i<=idx?(C.raydium):"rgba(255,255,255,0.08)",opacity:i===idx?1:i<idx?0.5:0.2}}/>;})}
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
           {gradState==="LIVE"&&<Btn full color={C.raydium}>View on Meteora</Btn>}
@@ -1517,7 +1517,7 @@ function TradesTab({t}) {
 
 function TokenPage({t:tProp,onClose,connected,onConnect}) {
   const [tokenData, setTokenData] = useState(tProp);
-  const t={...tokenData,txs:tokenData.txs||0,vol:tokenData.vol||"$0",volRaw:tokenData.volRaw||0,holders:tokenData.holders||0,prog:tokenData.prog||0,age:tokenData.age||0,raisedSOL:tokenData.raisedSOL||0,raisedSOLMax:tokenData.raisedSOLMax||85,elapsed:tokenData.elapsed||0,mcap:tokenData.mcap||0,chg:tokenData.chg||0,bondingFull:tokenData.bondingFull||false,graduated:tokenData.graduated||false,meteoraPoolKey:tokenData.meteoraPoolKey||null,migrationComplete:tokenData.migrationComplete||false,graduationTs:tokenData.graduationTs||0,migrationState:tokenData.migrationState||null,meteoraPoolKey:tokenData.meteoraPoolKey||null,migrationComplete:tokenData.migrationComplete||false,graduationTs:tokenData.graduationTs||0,migrationState:tokenData.migrationState||null,meteoraPoolKey:tokenData.meteoraPoolKey||null,migrationComplete:tokenData.migrationComplete||false,graduationTs:tokenData.graduationTs||0,topicLocked:tokenData.topicLocked||false,sym:tokenData.sym||"???",name:tokenData.name||tokenData.sym||"Unknown",desc:tokenData.desc||"",minsAgo:tokenData.minsAgo||0,pi:tokenData.pi||0,mint:tokenData.mint||tokenData.id,mintAddress:tokenData.mintAddress||tokenData.mint||tokenData.id};
+  const t={...tokenData,txs:tokenData.txs||0,vol:tokenData.vol||"$0",volRaw:tokenData.volRaw||0,holders:tokenData.holders||0,prog:tokenData.prog||0,age:tokenData.age||0,raisedSOL:tokenData.raisedSOL||0,raisedSOLMax:tokenData.raisedSOLMax||85,elapsed:tokenData.elapsed||0,mcap:tokenData.mcap||0,chg:tokenData.chg||0,bondingFull:tokenData.bondingFull||false,graduated:tokenData.graduated||false,meteoraPoolKey:tokenData.meteoraPoolKey||null,migrationComplete:tokenData.migrationComplete||false,graduationTs:tokenData.graduationTs||0,topicLocked:tokenData.topicLocked||false,sym:tokenData.sym||"???",name:tokenData.name||tokenData.sym||"Unknown",desc:tokenData.desc||"",minsAgo:tokenData.minsAgo||0,pi:tokenData.pi||0,mint:tokenData.mint||tokenData.id,mintAddress:tokenData.mintAddress||tokenData.mint||tokenData.id};
   const [range,setRange]=useState("1H");
   const [rightTab,setRightTab]=useState("swap");
   const [candles,setCandles]=useState(()=>genCandles(80,0.00004+Math.random()*0.0001));
@@ -1693,7 +1693,6 @@ function TokenPage({t:tProp,onClose,connected,onConnect}) {
                 {gradState==="LIVE"&&<div style={{background:C.raydiumBg,border:`1px solid ${C.raydiumBd}`,borderRadius:6,padding:"2px 8px"}}><Label size={10} color={C.raydium}>LP locked forever</Label></div>}
                 {gradState==="MIGRATING"&&<div style={{background:C.goldBg,border:`1px solid ${C.goldBd}`,borderRadius:6,padding:"2px 8px",animation:"pulse 2s infinite"}}><Label size={10} color={C.gold}>Migrating...</Label></div>}
                 {gradState==="GRADUATED"&&<div style={{background:C.goldBg,border:`1px solid ${C.goldBd}`,borderRadius:6,padding:"2px 8px"}}><Label size={10} color={C.gold}>Graduated</Label></div>}
-                {gradState==="FAILED"&&<div style={{background:"rgba(255,69,58,0.08)",border:"1px solid rgba(255,69,58,0.2)",borderRadius:6,padding:"2px 8px"}}><Label size={10} color="#ff453a">Failed</Label></div>}
               </div>
             </div>
             <div style={{height:8,background:"rgba(255,255,255,0.08)",borderRadius:99,overflow:"hidden"}}>
@@ -1969,10 +1968,6 @@ function LaunchModal({onClose,slotData,onDeployed}) {
           {gradState==="LIVE"&&<div style={{background:C.raydiumBg,border:`1px solid ${C.raydiumBd}`,borderRadius:8,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"flex-start",gap:10}}>
             <div style={{width:6,height:6,borderRadius:"50%",background:C.raydium,flexShrink:0,marginTop:4}}/>
             <Label size={12} color={C.raydium} style={{lineHeight:1.6}}>Live on Meteora. LP locked forever. Trade via Jupiter — 1% partner fee compounds back into LP.</Label>
-          </div>}
-          {gradState==="FAILED"&&<div style={{background:"rgba(255,69,58,0.08)",border:"1px solid rgba(255,69,58,0.2)",borderRadius:8,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"flex-start",gap:10}}>
-            <div style={{width:6,height:6,borderRadius:"50%",background:"#ff453a",flexShrink:0,marginTop:4}}/>
-            <Label size={12} color="#ff453a" style={{lineHeight:1.6}}>Migration failed. Funds are safe in escrow. {migState?.error||""}</Label>
           </div>}
 
           {/* Airdrop mechanics — updated to match simple quarterly model */}
