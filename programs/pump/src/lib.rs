@@ -20,8 +20,9 @@ pub mod pump {
         fee: f64,
         protocol_wallet: Pubkey,
         airdrop_wallet: Pubkey,
+        migration_authority: Pubkey,
     ) -> Result<()> {
-        instructions::initialize(ctx, fee, protocol_wallet, airdrop_wallet)
+        instructions::initialize(ctx, fee, protocol_wallet, airdrop_wallet, migration_authority)
     }
 
     pub fn add_liquidity(
@@ -51,17 +52,14 @@ pub mod pump {
 
     // ── Migration (escrow PDA) ──────────────────────────
 
-    /// Extract graduation fees, move remaining SOL + tokens to escrow PDA
     pub fn prepare_migration(ctx: Context<PrepareMigration>) -> Result<()> {
         instructions::prepare_migration(ctx)
     }
 
-    /// Bot calls this to release escrow funds for Meteora pool creation
     pub fn release_escrow(ctx: Context<ReleaseEscrow>) -> Result<()> {
         instructions::release_escrow(ctx)
     }
 
-    /// Admin-only: cancel failed migration, return funds to pool
     pub fn cancel_escrow(ctx: Context<CancelEscrow>) -> Result<()> {
         instructions::cancel_escrow(ctx)
     }
