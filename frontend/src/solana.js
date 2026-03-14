@@ -26,6 +26,27 @@ async function supabaseGet(table, params = '') {
   }
 }
 
+
+// ── Migration state from Supabase ─────────
+export async function fetchMigrationState(mintPubkey) {
+  try {
+    const rows = await supabaseGet('graduated_pools', 'mint=eq.' + mintPubkey + '&limit=1')
+    if (!rows || rows.length === 0) return { status: 'none' }
+    const r = rows[0]
+    return {
+      status: r.status || 'pending',
+      meteoraPool: r.meteora_pool || null,
+      solMigrated: r.sol_migrated || 0,
+      tokensMigrated: r.tokens_migrated || 0,
+      migratedAt: r.migrated_at || null,
+      error: r.error_msg || null,
+    }
+  } catch (e) {
+    console.warn('fetchMigrationState error:', e.message)
+    return { status: 'none' }
+  }
+}
+
 // Discriminators
 const DISCRIMINATORS = {
   add_liquidity: Buffer.from('b59d59438fb63448', 'hex'),
@@ -480,12 +501,20 @@ export async function fetchPoolData(mintPubkey) {
     const raisedSOL = totalSolRaised / 1e9
     const pricePerToken = reserveOne > 0 ? reserveTwo / reserveOne : 0
     const mcap = reserveOne > 0 ? Math.round((reserveTwo / reserveOne) * 1e9 * solPrice) : 0
+    let graduationTs = 0, meteoraPoolKey = null, migrationComplete = false
+    if (d.length >= 195) {
+      graduationTs = Number(d.readBigInt64LE(154))
+      meteoraPoolKey = new PublicKey(d.slice(162, 194)).toBase58()
+      migrationComplete = d[194] === 1
+      if (meteoraPoolKey === '11111111111111111111111111111111') meteoraPoolKey = null
+    }
     return {
       hasPool: true, solReserve, tokenReserve, raisedSOL, mcap, pricePerToken,
       graduated, launchTs, creator: creator.toBase58(),
       airdropPool: airdropPool / 1e9,
       bondingFull: raisedSOL >= 85,
       prog: Math.min(100, Math.round((raisedSOL / 85) * 100)),
+      graduationTs, meteoraPoolKey, migrationComplete,
     }
   } catch (e) {
     console.error(`fetchPoolData error for ${mintPubkey.slice(0,8)}...:`, e.message)
@@ -543,6 +572,13 @@ export async function fetchAllTokensWithPools() {
       const ageDays = Math.max(0, Math.floor(ageSec / 86400))
       const ageMins = Math.max(0, Math.floor(ageSec / 60))
 
+      let graduationTs = 0, meteoraPoolKey = null, migrationComplete = false
+      if (d.length >= 195) {
+        graduationTs = Number(d.readBigInt64LE(154))
+        meteoraPoolKey = new PublicKey(d.slice(162, 194)).toBase58()
+        migrationComplete = d[194] === 1
+        if (meteoraPoolKey === '11111111111111111111111111111111') meteoraPoolKey = null
+      }
       return {
         ...t,
         mcap, raisedSOL, bondingFull: raisedSOL >= 85, graduated,
@@ -551,6 +587,7 @@ export async function fetchAllTokensWithPools() {
         solReserve, tokenReserve, airdropPool: airdropPool / 1e9,
         launchTs, holders, txs: stats.totalTrades,
         age: ageDays, elapsed: ageMins, minsAgo: ageMins,
+        graduationTs, meteoraPoolKey, migrationComplete,
       }
     } catch (e) {
       console.error(`Pool parse error for ${t.sym}:`, e.message)

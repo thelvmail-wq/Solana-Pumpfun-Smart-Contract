@@ -1,4 +1,4 @@
-import { buildSwapTx, buildCreateRegistryTx, buildClaimLocksTx, buildCreateSourceLockTx, fetchDeployedTokens, fetchAllTokensWithPools, fetchSourceLocks, connection, sha256, fetchHolderCount, fetchCandles } from "./solana.js";
+import { buildSwapTx, buildCreateRegistryTx, buildClaimLocksTx, buildCreateSourceLockTx, fetchDeployedTokens, fetchAllTokensWithPools, fetchSourceLocks, connection, sha256, fetchHolderCount, fetchCandles, fetchMigrationState } from "./solana.js";
 import { useState, useEffect, useRef } from "react";
 
 // ── Design direction: High-end crypto editorial ─────────────────
@@ -1133,7 +1133,8 @@ function Card({t,onClick,rank}) {
         <Tag color={C.textTer}>{t.holders > 0 ? t.holders.toLocaleString() : "—"} holders</Tag>
         {as.s==="live"&&<Tag color={C.green}>Rewards live</Tag>}
         {as.s==="pending"&&<Tag color={C.gold}>Snapshot {as.minsLeft}m</Tag>}
-        {t.graduated&&<Tag color={C.raydium}>On Meteora</Tag>}
+        {t.migrationComplete&&<Tag color={C.raydium}>On Meteora</Tag>}
+        {t.graduated&&!t.migrationComplete&&<Tag color={C.gold}>Migrating</Tag>}
         {t.bondingFull&&!t.graduated&&<Tag color={C.accent}>Bonded</Tag>}
         {(t.raisedSOL||0)>=60&&!t.bondingFull&&<Tag color={C.purple}>Near grad</Tag>}
       </div>
@@ -1159,11 +1160,14 @@ function GraduationModal({t,onClose}) {
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(30px)",animation:"fadeIn 0.2s ease"}} onClick={onClose}>
       <div style={{background:C.sheet,borderRadius:10,padding:"28px 24px",textAlign:"center",maxWidth:320,width:"92%",border:`1px solid ${C.border}`,boxShadow:"0 40px 80px rgba(0,0,0,0.6)",animation:"scaleIn 0.22s ease"}} onClick={e=>e.stopPropagation()}>
         <div style={{width:56,height:56,borderRadius:8,background:C.raydiumBg,border:`1px solid ${C.raydiumBd}`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px"}}><svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M4 11L9 16L18 6" stroke={C.raydium} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg></div>
-        <Label size={20} color={C.text} weight={700} style={{display:"block",marginBottom:6}}>Graduated</Label>
-        <Label size={13} color={C.textSec} style={{display:"block",lineHeight:1.6,marginBottom:20}}>LP locked on Meteora. Auto-submitted to Dexscreener. All fees now compound to LP forever.</Label>
+        <Label size={20} color={C.text} weight={700} style={{display:"block",marginBottom:6}}>{gradState==="LIVE"?"Live on Meteora":gradState==="MIGRATING"?"Migrating...":gradState==="FAILED"?"Migration failed":"Graduated"}</Label>
+        <Label size={13} color={C.textSec} style={{display:"block",lineHeight:1.6,marginBottom:4}}>{gradState==="LIVE"?"LP locked forever. Trading via Jupiter. All fees compound back into LP.":gradState==="MIGRATING"?"Setting up LP on Meteora DAMM v2. Usually takes 1-2 minutes.":gradState==="FAILED"?(migState?.error||"Migration failed. Funds safe in escrow."):"Bonding curve complete. Migration to Meteora starting soon."}</Label>
+        <div style={{display:"flex",gap:4,margin:"12px 0",justifyContent:"center"}}>
+          {["GRADUATED","MIGRATING","LIVE"].map((s,i)=>{const idx=["GRADUATED","MIGRATING","LIVE"].indexOf(gradState==="FAILED"?"MIGRATING":gradState);return <div key={s} style={{height:3,flex:1,maxWidth:60,borderRadius:99,background:i<=idx?(gradState==="FAILED"?"#ff453a":C.raydium):"rgba(255,255,255,0.08)",opacity:i===idx?1:i<idx?0.5:0.2}}/>;})}
+        </div>
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
-          <Btn full color={C.raydium}>View on Meteora</Btn>
-          <Btn full color={C.teal}>View on Dexscreener</Btn>
+          {gradState==="LIVE"&&<Btn full color={C.raydium}>View on Meteora</Btn>}
+          {gradState==="LIVE"&&<Btn full color={C.teal}>View on Dexscreener</Btn>}
           <Btn full variant="ghost" onClick={onClose}>Back</Btn>
         </div>
       </div>
@@ -1513,7 +1517,7 @@ function TradesTab({t}) {
 
 function TokenPage({t:tProp,onClose,connected,onConnect}) {
   const [tokenData, setTokenData] = useState(tProp);
-  const t={...tokenData,txs:tokenData.txs||0,vol:tokenData.vol||"$0",volRaw:tokenData.volRaw||0,holders:tokenData.holders||0,prog:tokenData.prog||0,age:tokenData.age||0,raisedSOL:tokenData.raisedSOL||0,raisedSOLMax:tokenData.raisedSOLMax||85,elapsed:tokenData.elapsed||0,mcap:tokenData.mcap||0,chg:tokenData.chg||0,bondingFull:tokenData.bondingFull||false,graduated:tokenData.graduated||false,topicLocked:tokenData.topicLocked||false,sym:tokenData.sym||"???",name:tokenData.name||tokenData.sym||"Unknown",desc:tokenData.desc||"",minsAgo:tokenData.minsAgo||0,pi:tokenData.pi||0,mint:tokenData.mint||tokenData.id,mintAddress:tokenData.mintAddress||tokenData.mint||tokenData.id};
+  const t={...tokenData,txs:tokenData.txs||0,vol:tokenData.vol||"$0",volRaw:tokenData.volRaw||0,holders:tokenData.holders||0,prog:tokenData.prog||0,age:tokenData.age||0,raisedSOL:tokenData.raisedSOL||0,raisedSOLMax:tokenData.raisedSOLMax||85,elapsed:tokenData.elapsed||0,mcap:tokenData.mcap||0,chg:tokenData.chg||0,bondingFull:tokenData.bondingFull||false,graduated:tokenData.graduated||false,migrationState:tokenData.migrationState||null,meteoraPoolKey:tokenData.meteoraPoolKey||null,migrationComplete:tokenData.migrationComplete||false,graduationTs:tokenData.graduationTs||0,topicLocked:tokenData.topicLocked||false,sym:tokenData.sym||"???",name:tokenData.name||tokenData.sym||"Unknown",desc:tokenData.desc||"",minsAgo:tokenData.minsAgo||0,pi:tokenData.pi||0,mint:tokenData.mint||tokenData.id,mintAddress:tokenData.mintAddress||tokenData.mint||tokenData.id};
   const [range,setRange]=useState("1H");
   const [rightTab,setRightTab]=useState("swap");
   const [candles,setCandles]=useState(()=>genCandles(80,0.00004+Math.random()*0.0001));
@@ -1527,6 +1531,24 @@ function TokenPage({t:tProp,onClose,connected,onConnect}) {
       if(count > 0) setTokenData(prev => ({...prev, holders: count}));
     }).catch(()=>{});
   }, [t.mint, t.mintAddress]);
+
+  const [migState, setMigState] = useState(null);
+  useEffect(()=>{
+    const mintStr = t.mint || t.mintAddress;
+    if(!mintStr || !t.graduated) return;
+    fetchMigrationState(mintStr).then(s => setMigState(s)).catch(()=>{});
+    const iv = setInterval(()=>{
+      fetchMigrationState(mintStr).then(s => setMigState(s)).catch(()=>{});
+    }, 10000);
+    return ()=> clearInterval(iv);
+  }, [t.mint, t.mintAddress, t.graduated]);
+
+  const gradState = !t.graduated ? 'TRADING'
+    : t.migrationComplete ? 'LIVE'
+    : migState?.status === 'live' ? 'LIVE'
+    : migState?.status === 'failed' ? 'FAILED'
+    : migState?.status === 'pending' ? 'MIGRATING'
+    : 'GRADUATED';
 
   // Map UI range to Supabase timeframe
   const tfMap = {"5M":"5m","15M":"15m","1H":"1h","4H":"4h","1D":"1d"};
@@ -1667,7 +1689,10 @@ function TokenPage({t:tProp,onClose,connected,onConnect}) {
               </div>
               <div style={{display:"flex",alignItems:"center",gap:8}}>
                 <Label size={14} color={p.a} weight={700}>{t.prog}%</Label>
-                {t.graduated&&<div style={{background:C.raydiumBg,border:`1px solid ${C.raydiumBd}`,borderRadius:6,padding:"2px 8px"}}><Label size={10} color={C.raydium}>LP locked forever</Label></div>}
+                {gradState==="LIVE"&&<div style={{background:C.raydiumBg,border:`1px solid ${C.raydiumBd}`,borderRadius:6,padding:"2px 8px"}}><Label size={10} color={C.raydium}>LP locked forever</Label></div>}
+                {gradState==="MIGRATING"&&<div style={{background:C.goldBg,border:`1px solid ${C.goldBd}`,borderRadius:6,padding:"2px 8px",animation:"pulse 2s infinite"}}><Label size={10} color={C.gold}>Migrating...</Label></div>}
+                {gradState==="GRADUATED"&&<div style={{background:C.goldBg,border:`1px solid ${C.goldBd}`,borderRadius:6,padding:"2px 8px"}}><Label size={10} color={C.gold}>Graduated</Label></div>}
+                {gradState==="FAILED"&&<div style={{background:"rgba(255,69,58,0.08)",border:"1px solid rgba(255,69,58,0.2)",borderRadius:6,padding:"2px 8px"}}><Label size={10} color="#ff453a">Failed</Label></div>}
               </div>
             </div>
             <div style={{height:8,background:"rgba(255,255,255,0.08)",borderRadius:99,overflow:"hidden"}}>
@@ -1932,10 +1957,22 @@ function LaunchModal({onClose,slotData,onDeployed}) {
           </div>
 
           {/* Graduation notice */}
-          <div style={{background:C.raydiumBg,border:`1px solid ${C.raydiumBd}`,borderRadius:8,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"flex-start",gap:10}}>
+          {gradState==="TRADING"&&<div style={{background:C.raydiumBg,border:`1px solid ${C.raydiumBd}`,borderRadius:8,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"flex-start",gap:10}}>
             <div style={{width:6,height:6,borderRadius:"50%",background:C.raydium,flexShrink:0,marginTop:4}}/>
             <Label size={12} color={C.textSec} style={{lineHeight:1.6}}>On graduation LP migrates to Meteora and locks forever. All fees compound back into LP depth automatically on every trade.</Label>
-          </div>
+          </div>}
+          {(gradState==="GRADUATED"||gradState==="MIGRATING")&&<div style={{background:C.goldBg,border:`1px solid ${C.goldBd}`,borderRadius:8,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"flex-start",gap:10}}>
+            <div style={{width:6,height:6,borderRadius:"50%",background:C.gold,flexShrink:0,marginTop:4,animation:"pulse 2s infinite"}}/>
+            <Label size={12} color={C.gold} style={{lineHeight:1.6}}>{gradState==="GRADUATED"?"Bonding curve complete! Migration to Meteora starting soon.":"Migrating to Meteora DAMM v2. LP locks automatically. Usually takes 1-2 minutes."}</Label>
+          </div>}
+          {gradState==="LIVE"&&<div style={{background:C.raydiumBg,border:`1px solid ${C.raydiumBd}`,borderRadius:8,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"flex-start",gap:10}}>
+            <div style={{width:6,height:6,borderRadius:"50%",background:C.raydium,flexShrink:0,marginTop:4}}/>
+            <Label size={12} color={C.raydium} style={{lineHeight:1.6}}>Live on Meteora. LP locked forever. Trade via Jupiter — 1% partner fee compounds back into LP.</Label>
+          </div>}
+          {gradState==="FAILED"&&<div style={{background:"rgba(255,69,58,0.08)",border:"1px solid rgba(255,69,58,0.2)",borderRadius:8,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"flex-start",gap:10}}>
+            <div style={{width:6,height:6,borderRadius:"50%",background:"#ff453a",flexShrink:0,marginTop:4}}/>
+            <Label size={12} color="#ff453a" style={{lineHeight:1.6}}>Migration failed. Funds are safe in escrow. {migState?.error||""}</Label>
+          </div>}
 
           {/* Airdrop mechanics — updated to match simple quarterly model */}
           <div style={{background:C.goldBg,border:`1px solid ${C.goldBd}`,borderRadius:8,padding:"12px 14px",marginBottom:14}}>
