@@ -1,4 +1,4 @@
-import { buildSwapTx, buildJupiterSwapTx, buildCreateRegistryTx, buildClaimLocksTx, buildCreateSourceLockTx, fetchDeployedTokens, fetchAllTokensWithPools, fetchSourceLocks, connection, sha256, fetchHolderCount, fetchCandles, fetchMigrationState } from "./solana.js";
+import { buildSwapTx, buildJupiterSwapTx, buildCreateRegistryTx, buildClaimLocksTx, buildCreateSourceLockTx, fetchDeployedTokens, fetchAllTokensWithPools, fetchSourceLocks, connection, sha256, fetchHolderCount, fetchCandles, fetchMigrationState , fetchAirdropPoints, fetchAirdropLeaderboard, fetchCombinedCandles } from "./solana.js";
 import { useState, useEffect, useRef } from "react";
 
 // ── Design direction: High-end crypto editorial ─────────────────
