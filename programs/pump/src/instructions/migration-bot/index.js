@@ -23,7 +23,8 @@
 
 const { Connection, Keypair, PublicKey, LAMPORTS_PER_SOL, SystemProgram, Transaction } = require('@solana/web3.js');
 const { Program, AnchorProvider, Wallet, BN } = require('@coral-xyz/anchor');
-const { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddress, createAssociatedTokenAccountInstruction } = require('@solana/spl-token');
+const { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddress, createAssociatedTokenAccountInstruction, createSyncNativeInstruction, NATIVE_MINT } = require('@solana/spl-token');
+const { CpAmm } = require('@meteora-ag/cp-amm-sdk');
 const fs = require('fs');
 const http = require('http');
 
@@ -32,10 +33,9 @@ const http = require('http');
 // ============================================================
 
 const RPC_URL = process.env.RPC_URL || 'https://devnet.helius-rpc.com/?api-key=058c5cbb-e6d6-4f09-a110-aaa298b485c1';
-const PROGRAM_ID = new PublicKey(process.env.PROGRAM_ID || 'GHpQrg55uW5Yo97HtrARaDCznA5cxfwW96tySRiRcPWb');
+const PROGRAM_ID = new PublicKey(process.env.PROGRAM_ID || 'BQ51fq1UavsR8typUWE4y4EsYN7tSF1cVfU27wVrHP6C');
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://zhhplcgfhrtjyruvlqkx.supabase.co';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || '';
-const METEORA_PROGRAM_ID = new PublicKey('cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG');
 const WSOL_MINT = new PublicKey('So11111111111111111111111111111111111111112');
 const PORT = parseInt(process.env.PORT || '3001');
 const POLL_INTERVAL = 10_000; // 10 seconds
@@ -53,6 +53,7 @@ const botKeypair = Keypair.fromSecretKey(
 const connection = new Connection(RPC_URL, 'confirmed');
 const wallet = new Wallet(botKeypair);
 const provider = new AnchorProvider(connection, wallet, { commitment: 'confirmed' });
+const cpAmm = new CpAmm(connection);
 
 // Minimal IDL for the 3 migration instructions
 const IDL = {
@@ -170,7 +171,7 @@ async function step1_prepareMigration(mint, protocolWallet, airdropWallet) {
     console.log(`\n  [1/5] prepare_migration for ${mint.toBase58()}`);
 
     const [poolPDA] = getPoolPDA(mint);
-    const [globalPDA, globalBump] = getGlobalPDA();
+    const [globalPDA] = getGlobalPDA();
     const [configPDA] = getConfigPDA();
     const [escrowPDA] = getEscrowPDA(mint);
 
@@ -250,7 +251,7 @@ async function step2_releaseEscrow(mint) {
 }
 
 // ============================================================
-// STEP 3: Create Meteora Pool (initialize_customizable_pool)
+// STEP 3: Create Meteora DAMM v2 Pool
 // ============================================================
 
 async function step3_createMeteoraPool(mint) {
@@ -261,42 +262,70 @@ async function step3_createMeteoraPool(mint) {
     const botTokenAccount = await getAssociatedTokenAddress(mint, botKeypair.publicKey);
     const tokenInfo = await connection.getTokenAccountBalance(botTokenAccount);
     const tokenAmount = parseInt(tokenInfo.value.amount);
-    const solForPool = solBalance - (0.05 * LAMPORTS_PER_SOL); // Keep 0.05 SOL for fees
+    const solForPool = solBalance - Math.floor(0.05 * LAMPORTS_PER_SOL); // Keep 0.05 SOL for fees
+
+    if (solForPool <= 0) throw new Error(`Not enough SOL for pool. Balance: ${solBalance}`);
+    if (tokenAmount <= 0) throw new Error(`No tokens in bot wallet for pool creation.`);
 
     console.log(`    SOL for pool: ${(solForPool / LAMPORTS_PER_SOL).toFixed(4)}`);
     console.log(`    Tokens for pool: ${tokenAmount}`);
 
-    // ════════════════════════════════════════════════════
-    // METEORA SDK: initialize_customizable_pool
-    // No config key needed — permissionless pool creation
-    //
-    // const { CpAmm } = require('@meteora-ag/cp-amm-sdk');
-    // const cpAmm = new CpAmm(connection);
-    //
-    // // Wrap SOL to wSOL first
-    // // ... (createWrappedNativeAccount or syncNative)
-    //
-    // const positionNftMint = Keypair.generate();
-    //
-    // const { pool, tx } = await cpAmm.createCustomizablePool({
-    //     payer: botKeypair.publicKey,
-    //     creator: botKeypair.publicKey,
-    //     positionNft: positionNftMint.publicKey,
-    //     tokenAMint: mint,
-    //     tokenBMint: WSOL_MINT,
-    //     tokenAAmount: new BN(tokenAmount),
-    //     tokenBAmount: new BN(solForPool),
-    //     // Full range constant product (no concentrated liquidity)
-    //     // Use SDK constants for min/max sqrt price
-    // });
-    //
-    // await provider.sendAndConfirm(tx, [botKeypair, positionNftMint]);
-    // return { poolAddress: pool, positionNft: positionNftMint.publicKey };
-    // ════════════════════════════════════════════════════
+    // ── Wrap SOL → wSOL ──
+    const wsolAta = await getAssociatedTokenAddress(WSOL_MINT, botKeypair.publicKey);
+    const wsolInfo = await connection.getAccountInfo(wsolAta);
 
-    console.log('    ⏳ Meteora SDK not wired yet — pool creation stubbed');
-    console.log('    Use initialize_customizable_pool (no config key needed)');
-    return null;
+    const wrapTx = new Transaction();
+    if (!wsolInfo) {
+        wrapTx.add(createAssociatedTokenAccountInstruction(
+            botKeypair.publicKey, wsolAta, botKeypair.publicKey, WSOL_MINT
+        ));
+    }
+    wrapTx.add(SystemProgram.transfer({
+        fromPubkey: botKeypair.publicKey,
+        toPubkey: wsolAta,
+        lamports: solForPool,
+    }));
+    wrapTx.add(createSyncNativeInstruction(wsolAta));
+    await provider.sendAndConfirm(wrapTx, [botKeypair]);
+    console.log(`    wSOL wrapped: ${(solForPool / LAMPORTS_PER_SOL).toFixed(4)}`);
+
+    // ── Create Meteora DAMM v2 pool ──
+    const positionNftMint = Keypair.generate();
+
+    // Token ordering: Meteora requires tokenA < tokenB by pubkey bytes
+    const mintBytes = mint.toBuffer();
+    const wsolBytes = WSOL_MINT.toBuffer();
+    const mintFirst = Buffer.compare(mintBytes, wsolBytes) < 0;
+
+    const tokenAMint = mintFirst ? mint : WSOL_MINT;
+    const tokenBMint = mintFirst ? WSOL_MINT : mint;
+    const tokenAAmount = new BN(mintFirst ? tokenAmount.toString() : solForPool.toString());
+    const tokenBAmount = new BN(mintFirst ? solForPool.toString() : tokenAmount.toString());
+
+    console.log(`    Token A: ${tokenAMint.toBase58().slice(0, 8)}... (${tokenAAmount.toString()})`);
+    console.log(`    Token B: ${tokenBMint.toBase58().slice(0, 8)}... (${tokenBAmount.toString()})`);
+
+    const createPoolTx = await cpAmm.createPool({
+        payer: botKeypair.publicKey,
+        creator: botKeypair.publicKey,
+        positionNft: positionNftMint.publicKey,
+        tokenAMint: tokenAMint,
+        tokenBMint: tokenBMint,
+        tokenAAmount: tokenAAmount,
+        tokenBAmount: tokenBAmount,
+    });
+
+    const sig = await provider.sendAndConfirm(createPoolTx.tx, [botKeypair, positionNftMint]);
+    console.log(`    ✅ Meteora pool created: ${createPoolTx.pool.toBase58()}`);
+    console.log(`    Pool tx: ${sig}`);
+
+    return {
+        poolAddress: createPoolTx.pool,
+        positionNft: positionNftMint.publicKey,
+        txSig: sig,
+        solMigrated: solForPool,
+        tokensMigrated: tokenAmount,
+    };
 }
 
 // ============================================================
@@ -306,19 +335,18 @@ async function step3_createMeteoraPool(mint) {
 async function step4_lockLP(meteoraPool, positionNft) {
     console.log(`  [4/5] Permanently locking LP...`);
 
-    // ════════════════════════════════════════════════════
-    // METEORA SDK: permanent_lock_position
-    //
-    // const lockTx = await cpAmm.permanentLockPosition({
-    //     pool: meteoraPool,
-    //     position: positionNft,
-    //     owner: botKeypair.publicKey,
-    // });
-    // await provider.sendAndConfirm(lockTx, [botKeypair]);
-    // ════════════════════════════════════════════════════
+    const poolKey = typeof meteoraPool === 'string' ? new PublicKey(meteoraPool) : meteoraPool;
+    const nftKey = typeof positionNft === 'string' ? new PublicKey(positionNft) : positionNft;
 
-    console.log('    ⏳ LP lock stubbed — wire Meteora SDK');
-    return null;
+    const lockTx = await cpAmm.lockPosition({
+        pool: poolKey,
+        position: nftKey,
+        owner: botKeypair.publicKey,
+    });
+
+    const sig = await provider.sendAndConfirm(lockTx, [botKeypair]);
+    console.log(`    ✅ LP permanently locked. tx: ${sig}`);
+    return sig;
 }
 
 // ============================================================
@@ -361,32 +389,37 @@ async function runMigration(mint, protocolWallet, airdropWallet) {
         // ── STEP 2: release_escrow ──
         if (!row.pool_create_tx) {
             const releaseTx = await step2_releaseEscrow(mint);
-            // Don't store release tx separately — it's part of the flow
+            console.log(`    release_escrow done: ${releaseTx}`);
         }
 
         // ── STEP 3: Create Meteora pool ──
+        let meteoraResult = null;
         if (!row.meteora_pool) {
-            const result = await step3_createMeteoraPool(mint);
-
-            if (!result) {
-                console.log('\n  ⚠️  Meteora SDK not wired. Stopping. Funds in bot wallet.');
-                console.log('  Fill in step3_createMeteoraPool() and restart bot.');
-                return;
-            }
+            meteoraResult = await step3_createMeteoraPool(mint);
 
             await updateGraduatedPool(mintStr, {
-                meteora_pool: result.poolAddress.toBase58(),
-                pool_create_tx: 'TODO', // Replace with actual tx sig
-                sol_migrated: 0, // Replace with actual
-                tokens_migrated: 0, // Replace with actual
+                meteora_pool: meteoraResult.poolAddress.toBase58(),
+                pool_create_tx: meteoraResult.txSig,
+                sol_migrated: meteoraResult.solMigrated,
+                tokens_migrated: meteoraResult.tokensMigrated,
+                position_nft: meteoraResult.positionNft.toBase58(),
             });
+            row = await getGraduatedPool(mintStr);
         }
 
         // ── STEP 4: Lock LP ──
         if (!row.lp_lock_tx) {
-            const lockTx = await step4_lockLP(row.meteora_pool, null);
-            if (lockTx) {
-                await updateGraduatedPool(mintStr, { lp_lock_tx: lockTx });
+            const nft = meteoraResult
+                ? meteoraResult.positionNft
+                : (row.position_nft ? new PublicKey(row.position_nft) : null);
+
+            if (!nft) {
+                console.warn('    ⚠️  No position NFT found — cannot lock LP');
+            } else {
+                const lockTx = await step4_lockLP(row.meteora_pool, nft);
+                if (lockTx) {
+                    await updateGraduatedPool(mintStr, { lp_lock_tx: lockTx });
+                }
             }
         }
 
@@ -421,15 +454,15 @@ async function runMigration(mint, protocolWallet, airdropWallet) {
 
 async function pollForGraduations() {
     try {
-        // LiquidityPool ACCOUNT_SIZE from state.rs
-        const POOL_SIZE = 8 + 32 + 32 + 8 + 8 + 8 + 1 + 8 + 1 + 8 + 32 + 8 + 8 + 32 + 1 + 16;
+        // LiquidityPool account size: 8(disc)+32+32+8+8+8+1+8+1+8+32+8+8+32+1
+        const POOL_SIZE = 195;
 
         const accounts = await connection.getProgramAccounts(PROGRAM_ID, {
             filters: [{ dataSize: POOL_SIZE }],
         });
 
         for (const { pubkey, account } of accounts) {
-            // graduated bool at offset: 8(disc) + 32 + 32 + 8 + 8 + 8 + 1 + 8 = 105
+            // graduated bool at offset 105
             const graduated = account.data[105] === 1;
             if (!graduated) continue;
 
@@ -500,7 +533,7 @@ const server = http.createServer(async (req, res) => {
 // ============================================================
 
 async function main() {
-    console.log('🚀 SUMMIT.MOON Migration Bot (Escrow PDA v2)');
+    console.log('🚀 SUMMIT.MOON Migration Bot (Escrow PDA v2 + Meteora DAMM v2)');
     console.log(`   RPC: ${RPC_URL.slice(0, 40)}...`);
     console.log(`   Program: ${PROGRAM_ID.toBase58()}`);
     console.log(`   Bot wallet: ${botKeypair.publicKey.toBase58()}`);
