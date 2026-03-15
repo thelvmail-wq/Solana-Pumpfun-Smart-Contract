@@ -1,4 +1,4 @@
-import { buildSwapTx, buildCreateRegistryTx, buildClaimLocksTx, buildCreateSourceLockTx, fetchDeployedTokens, fetchAllTokensWithPools, fetchSourceLocks, connection, sha256, fetchHolderCount, fetchCandles, fetchMigrationState } from "./solana.js";
+import { buildSwapTx, buildJupiterSwapTx, buildCreateRegistryTx, buildClaimLocksTx, buildCreateSourceLockTx, fetchDeployedTokens, fetchAllTokensWithPools, fetchSourceLocks, connection, sha256, fetchHolderCount, fetchCandles, fetchMigrationState } from "./solana.js";
 import { useState, useEffect, useRef } from "react";
 
 // ── Design direction: High-end crypto editorial ─────────────────
@@ -967,15 +967,26 @@ function SwapPanel({t,connected,onConnect}) {
           const mintStr=t.mint||t.mintAddress;
           if(!mintStr){alert("No mint address — token not yet on-chain");setLoading(false);return;}
           const mintPk=new (await import('@solana/web3.js')).PublicKey(mintStr);
-          const tx=await buildSwapTx(provider.publicKey,mintPk,parseFloat(amt),tab==="buy");
-          tx.feePayer=provider.publicKey;
-          const {blockhash,lastValidBlockHeight}=await connection.getLatestBlockhash();
-          tx.recentBlockhash=blockhash;
-          const signed=await provider.signTransaction(tx);
-          const sig=await connection.sendRawTransaction(signed.serialize());
-          const result=await connection.confirmTransaction({signature:sig,blockhash,lastValidBlockHeight},"confirmed");
-          if(result?.value?.err){
-            throw new Error("Transaction failed on-chain. You may have insufficient SOL or the pool state changed.");
+          const isGraduated = t.migrationComplete || t.graduated;
+          if (isGraduated) {
+            // Post-graduation: route through Jupiter with 1.5% platform fee
+            console.log("Routing through Jupiter (post-graduation)...");
+            const jupResult = await buildJupiterSwapTx(provider.publicKey, mintStr, tab==="buy" ? parseFloat(amt) : parseFloat(amt), tab==="buy");
+            const signed = await provider.signTransaction(jupResult.tx);
+            const sig = await connection.sendRawTransaction(signed.serialize(), {skipPreflight:true});
+            const {blockhash,lastValidBlockHeight}=await connection.getLatestBlockhash();
+            const result=await connection.confirmTransaction({signature:sig,blockhash,lastValidBlockHeight},"confirmed");
+            if(result?.value?.err) throw new Error("Jupiter swap failed on-chain.");
+          } else {
+            // Pre-graduation: use bonding curve
+            const tx=await buildSwapTx(provider.publicKey,mintPk,parseFloat(amt),tab==="buy");
+            tx.feePayer=provider.publicKey;
+            const {blockhash,lastValidBlockHeight}=await connection.getLatestBlockhash();
+            tx.recentBlockhash=blockhash;
+            const signed=await provider.signTransaction(tx);
+            const sig=await connection.sendRawTransaction(signed.serialize());
+            const result=await connection.confirmTransaction({signature:sig,blockhash,lastValidBlockHeight},"confirmed");
+            if(result?.value?.err) throw new Error("Transaction failed on-chain. You may have insufficient SOL or the pool state changed.");
           }
           setDone(true);
         }catch(e){
