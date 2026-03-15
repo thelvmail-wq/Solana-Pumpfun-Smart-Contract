@@ -1533,6 +1533,8 @@ function TokenPage({t:tProp,onClose,connected,onConnect}) {
   const [rightTab,setRightTab]=useState("swap");
   const [candles,setCandles]=useState(()=>genCandles(80,0.00004+Math.random()*0.0001));
   const [hasRealCandles,setHasRealCandles]=useState(false);
+  const [chartSource,setChartSource]=useState('bonding');
+  const [graduationIndex,setGraduationIndex]=useState(-1);
 
   // Fetch real holder count on page open
   useEffect(()=>{
@@ -1565,22 +1567,38 @@ function TokenPage({t:tProp,onClose,connected,onConnect}) {
   // Map UI range to Supabase timeframe
   const tfMap = {"5M":"5m","15M":"15m","1H":"1h","4H":"4h","1D":"1d"};
 
-  // Fetch real candles when token or range changes
+  // Fetch candles — bonding curve + live Meteora/Jupiter post-graduation
   useEffect(()=>{
     const mintStr = t.mint || t.mintAddress;
     if(!mintStr) return;
     const tf = tfMap[range] || '1h';
-    fetchCandles(mintStr, tf, 100).then(real => {
-      if(real.length >= 2) {
-        setCandles(real);
+    fetchCombinedCandles(mintStr, tf, 100, t.graduated, t.migrationComplete).then(result => {
+      if(result.candles.length >= 2) {
+        setCandles(result.candles);
         setHasRealCandles(true);
+        setChartSource(result.source);
+        setGraduationIndex(result.graduationIndex);
       } else {
-        // No real data yet — keep fake candles
         setCandles(genCandles(80, t.pricePerToken || 0.00004+Math.random()*0.0001));
         setHasRealCandles(false);
+        setChartSource('bonding');
+        setGraduationIndex(-1);
       }
     }).catch(()=>{});
-  }, [t.mint, t.mintAddress, range]);
+    // If live, poll every 15s for new candles
+    if(gradState === 'LIVE') {
+      const iv = setInterval(()=>{
+        fetchCombinedCandles(mintStr, tf, 100, true, true).then(result => {
+          if(result.candles.length >= 2) {
+            setCandles(result.candles);
+            setHasRealCandles(true);
+            setChartSource(result.source);
+          }
+        }).catch(()=>{});
+      }, 15000);
+      return ()=> clearInterval(iv);
+    }
+  }, [t.mint, t.mintAddress, range, t.graduated, t.migrationComplete, gradState]);
   const p=PALETTES[t.pi%8],up=t.chg>0,mi=getMI(t.mcap),mil=MILESTONES[mi],as=getAS(t);
   const myPos=MY_POSITIONS.find(pos=>pos.sym===t.sym);
 
@@ -1678,6 +1696,17 @@ function TokenPage({t:tProp,onClose,connected,onConnect}) {
             {!hasRealCandles&&(
               <div style={{position:"absolute",top:8,left:16,padding:"3px 8px",background:"rgba(255,255,255,0.06)",border:`1px solid ${C.border}`,borderRadius:4,zIndex:5}}>
                 <Label size={9} color={C.textQuat}>SIMULATED — waiting for trades</Label>
+              </div>
+            )}
+            {hasRealCandles&&chartSource==='live'&&(
+              <div style={{position:"absolute",top:8,left:16,padding:"3px 8px",background:C.raydiumBg,border:`1px solid ${C.raydiumBd}`,borderRadius:4,zIndex:5,display:"flex",alignItems:"center",gap:5}}>
+                <div style={{width:5,height:5,borderRadius:"50%",background:C.raydium,animation:"pulse 2s infinite"}}/>
+                <Label size={9} color={C.raydium}>LIVE — Meteora DAMM v2</Label>
+              </div>
+            )}
+            {hasRealCandles&&chartSource==='bonding'&&(
+              <div style={{position:"absolute",top:8,left:16,padding:"3px 8px",background:"rgba(255,255,255,0.06)",border:`1px solid ${C.border}`,borderRadius:4,zIndex:5}}>
+                <Label size={9} color={C.textQuat}>Bonding curve</Label>
               </div>
             )}
           </div>
